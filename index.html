@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>캐치 드로잉 게임</title>
+  <!-- 가장 안정적인 P2P 통신 라이브러리 (PeerJS) -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; }
     body { background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
@@ -98,7 +100,7 @@
 
       <div class="join-code-group">
         <input type="text" id="join-code-input" placeholder="방 코드 6자리" maxlength="6" oninput="this.value = this.value.toUpperCase()">
-        <button class="btn btn-warning" style="white-space: nowrap;" id="join-btn" onclick="joinByCode()">방 코드 입력 후 참여</button>
+        <button class="btn btn-warning" style="white-space: nowrap;" id="join-btn" onclick="joinByCode()">코드 입력 후 참여</button>
       </div>
     </div>
   </div>
@@ -173,7 +175,9 @@
   let currentRoomCode = '';
   let isSubmitted = false;
 
-  let broadcastChannel = null;
+  let peer = null;
+  let hostConn = null;
+  let clientConns = [];
 
   let gameState = {
     roomCode: '',
@@ -198,30 +202,27 @@
     return gameMode === 'SOLO' || (gameState.users.length > 0 && gameState.users[0].id === myId);
   }
 
-  // 브라우저 동기화 연결 (로딩 전혀 없이 0.01초 접속)
-  function connectChannel(roomCode) {
-    if (broadcastChannel) broadcastChannel.close();
-    broadcastChannel = new BroadcastChannel('catch_drawing_' + roomCode);
-
-    broadcastChannel.onmessage = (e) => {
-      handleIncomingData(e.data);
-    };
-  }
-
   function broadcastState() {
     updateUI();
-    if (isHost() && gameMode === 'MULTI' && broadcastChannel) {
-      broadcastChannel.postMessage({ type: 'SYNC_STATE', payload: gameState });
+    if (isHost() && gameMode === 'MULTI') {
+      clientConns.forEach(conn => {
+        if (conn && conn.open) {
+          conn.send({ type: 'SYNC_STATE', payload: gameState });
+        }
+      });
     }
   }
 
-  function handleIncomingData(data) {
+  function handleIncomingData(data, conn) {
     const { type, payload } = data;
 
     if (type === 'JOIN_REQ') {
       if (isHost()) {
         const exists = gameState.users.find(u => u.id === payload.id);
-        if (!exists) gameState.users.push(payload);
+        if (!exists) {
+          gameState.users.push(payload);
+        }
+        if (!clientConns.includes(conn)) clientConns.push(conn);
         broadcastState();
       }
     } else if (type === 'ACTION_UPDATE') {
@@ -238,6 +239,7 @@
       }
     } else if (type === 'SYNC_STATE') {
       gameState = payload;
+      currentRoomCode = gameState.roomCode;
       updateUI();
     }
   }
@@ -251,15 +253,14 @@
       if (gameState.status === 'PLAYING') checkAllSubmitted();
       if (gameState.status === 'VOTING') checkAllVoted();
       if (gameState.status === 'ROUND_RESULT') checkAllNextRoundReady();
-    } else if (broadcastChannel) {
-      broadcastChannel.postMessage({
+    } else if (hostConn && hostConn.open) {
+      hostConn.send({
         type: 'ACTION_UPDATE',
         payload: { id: myId, data: actionData }
       });
     }
   }
 
-  // --- 화면 및 UI 제어 ---
   function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(screenId).classList.add('active');
@@ -279,17 +280,22 @@
   }
 
   function copyRoomCode() {
+    if(!currentRoomCode || currentRoomCode === 'XXXXXX') return;
     navigator.clipboard.writeText(currentRoomCode).then(() => showAlert('방 코드가 복사되었습니다: ' + currentRoomCode));
   }
 
   function updateUI() {
     const me = gameState.users.find(u => u.id === myId);
-    if (currentRoomCode && gameMode === 'MULTI') {
+    
+    // 방 코드 UI 업데이트
+    const displayCode = currentRoomCode || gameState.roomCode || 'XXXXXX';
+    if (displayCode !== 'XXXXXX' && gameMode === 'MULTI') {
       document.getElementById('room-code-badge').style.display = 'block';
-      document.getElementById('header-code').innerText = currentRoomCode;
-      document.getElementById('lobby-room-code').innerText = currentRoomCode;
+      document.getElementById('header-code').innerText = displayCode;
+      document.getElementById('lobby-room-code').innerText = displayCode;
     } else {
       document.getElementById('room-code-badge').style.display = 'none';
+      document.getElementById('lobby-room-code').innerText = 'XXXXXX';
     }
 
     document.getElementById('user-count').innerText = gameState.users.length;
@@ -336,7 +342,7 @@
     updateUndoRedoBtnState();
   }
 
-  // --- 방 생성 및 입장 ---
+  // 방 만들기 (방장)
   function createRoom(selectedMode) {
     const input = document.getElementById('nickname-input');
     const name = input.value.trim();
@@ -351,17 +357,39 @@
       gameState.users = [{ id: myId, name: myName, ready: true, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false }];
       startNewRound(1);
     } else {
-      currentRoomCode = generateRoomCode();
-      connectChannel(currentRoomCode);
+      const createBtn = document.getElementById('create-btn');
+      createBtn.innerText = '방 생성 중...';
+      createBtn.disabled = true;
 
-      document.getElementById('room-info').innerText = '캐치 드로잉 (멀티)';
-      gameState.roomCode = currentRoomCode;
-      gameState.users = [{ id: myId, name: myName, ready: false, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false }];
-      broadcastState();
-      showScreen('lobby-screen');
+      currentRoomCode = generateRoomCode();
+      const peerId = 'catch_room_' + currentRoomCode;
+
+      peer = new Peer(peerId);
+
+      peer.on('open', () => {
+        document.getElementById('room-info').innerText = '캐치 드로잉 (멀티)';
+        gameState.roomCode = currentRoomCode;
+        gameState.users = [{ id: myId, name: myName, ready: false, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false }];
+        broadcastState();
+        showScreen('lobby-screen');
+        createBtn.innerText = '새 방 만들기 (방 코드 생성)';
+        createBtn.disabled = false;
+      });
+
+      peer.on('connection', (conn) => {
+        clientConns.push(conn);
+        conn.on('data', (data) => handleIncomingData(data, conn));
+      });
+
+      peer.on('error', (err) => {
+        createBtn.innerText = '새 방 만들기 (방 코드 생성)';
+        createBtn.disabled = false;
+        showAlert('방 생성 중 오류가 발생했습니다. 다시 시도해 주세요.');
+      });
     }
   }
 
+  // 코드 입력하여 참여하기 (참여자)
   function joinByCode() {
     const nameInput = document.getElementById('nickname-input');
     const codeInput = document.getElementById('join-code-input');
@@ -373,16 +401,50 @@
 
     myName = name;
     gameMode = 'MULTI';
-    currentRoomCode = code;
+    currentRoomCode = code; // 입력받은 방 코드 고정
 
-    connectChannel(code);
+    const joinBtn = document.getElementById('join-btn');
+    joinBtn.innerText = '접속 중...';
+    joinBtn.disabled = true;
 
-    document.getElementById('room-info').innerText = '캐치 드로잉 (멀티)';
-    const meUser = { id: myId, name: myName, ready: false, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false };
-    
-    // 즉시 방장에게 참가 전송
-    broadcastChannel.postMessage({ type: 'JOIN_REQ', payload: meUser });
-    showScreen('lobby-screen');
+    // 참여자용 랜덤 Peer 생성
+    peer = new Peer();
+
+    peer.on('open', () => {
+      const targetHostId = 'catch_room_' + code;
+      hostConn = peer.connect(targetHostId);
+
+      hostConn.on('open', () => {
+        document.getElementById('room-info').innerText = '캐치 드로잉 (멀티)';
+        
+        // 일단 임시로 내 정보를 추가하여 UI 갱신
+        const meUser = { id: myId, name: myName, ready: false, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false };
+        gameState.roomCode = code;
+        gameState.users = [meUser];
+        updateUI();
+        showScreen('lobby-screen');
+
+        // 방장에게 내 참여 정보 전달
+        hostConn.send({ type: 'JOIN_REQ', payload: meUser });
+
+        joinBtn.innerText = '코드 입력 후 참여';
+        joinBtn.disabled = false;
+      });
+
+      hostConn.on('data', (data) => handleIncomingData(data, hostConn));
+
+      hostConn.on('error', () => {
+        joinBtn.innerText = '코드 입력 후 참여';
+        joinBtn.disabled = false;
+        showAlert('방을 찾을 수 없거나 연결 실패했습니다.');
+      });
+    });
+
+    peer.on('error', () => {
+      joinBtn.innerText = '코드 입력 후 참여';
+      joinBtn.disabled = false;
+      showAlert('방 코드가 존재하지 않거나 접속에 실패했습니다.');
+    });
   }
 
   function toggleReady() {
