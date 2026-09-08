@@ -295,6 +295,7 @@
   let votedTargetId = null;
   let lastRoundHandled = 0;
   let hasAutoSubmitted = false;
+  let isTransitioning = false; // 중복 승급 방지 플래그
 
   let gameState = {
     roomCode: '',
@@ -446,7 +447,7 @@
       timerElem.classList.remove('timer-warning');
     }
 
-    // 타임아웃 또는 라운드 종료 시 제출 처리
+    // 타임아웃 발생 시 자동 제출 처리
     if (gameState.status === 'PLAYING' && gameState.timer <= 0 && !hasAutoSubmitted) {
       hasAutoSubmitted = true;
       forceSubmitDrawing();
@@ -519,7 +520,7 @@
 
   function handleHostLogic() {
     const usersArr = Object.values(gameState.users || {});
-    if (isForcedStart) return;
+    if (isForcedStart || isTransitioning) return;
 
     if (gameState.status === 'LOBBY' && usersArr.length > 0 && usersArr.every(u => u.ready)) {
       if (gameState.startCountdown === 0 && !countdownTimerInterval) {
@@ -536,8 +537,8 @@
           let newTime = gameState.timer - 1;
           const currentUsers = Object.values(gameState.users || {});
           
-          // 타이머 시작 후 1초 이상 지난 시점에서만 제출 완료 여부 확인
-          const allSubmitted = newTime < DRAW_TIME && currentUsers.length > 0 && currentUsers.every(u => u.submitted === true);
+          // 전원이 제출 완료했는지 체크
+          const allSubmitted = currentUsers.length > 0 && currentUsers.every(u => u.submitted === true);
 
           if (newTime <= 0 || allSubmitted) {
             clearInterval(timerInterval);
@@ -612,27 +613,32 @@
   }
 
   function forceStartGame() {
-    if (!isHost) return;
+    if (!isHost || isTransitioning) return;
     isForcedStart = true;
     startCountdownTimer(3, () => startNewRound(1));
   }
 
   function forceNextRound() {
-    if (!isHost) return;
+    if (!isHost || isTransitioning) return;
     isForcedStart = true;
     startCountdownTimer(3, () => proceedNextRoundStep());
   }
 
   function proceedNextRoundStep() {
+    if (isTransitioning) return;
+    isTransitioning = true;
+
     saveRoundVotesToHistory();
     if (gameState.round < TOTAL_ROUNDS) {
       startNewRound(gameState.round + 1);
     } else {
       if (gameMode === 'MULTI') {
-        db.ref('rooms/' + currentRoomCode).update({ status: 'FINAL_RESULT', startCountdown: 0 });
+        db.ref('rooms/' + currentRoomCode).update({ status: 'FINAL_RESULT', startCountdown: 0 })
+          .then(() => { isTransitioning = false; });
       } else {
         gameState.status = 'FINAL_RESULT';
         gameState.startCountdown = 0;
+        isTransitioning = false;
         updateUI();
       }
     }
@@ -649,16 +655,18 @@
     const nextWord = getUniqueWord(usedWords);
     usedWords.push(nextWord);
 
+    // 라운드 시작 시 모든 유저 상태 완벽 초기화
     const updatedUsers = {};
     Object.keys(gameState.users || {}).forEach(uid => {
       const u = gameState.users[uid];
       updatedUsers[uid] = {
         ...u,
+        ready: false,
+        readyNext: false,
         submitted: false,
         drawing: '',
         votes: 0,
-        roundHistory: u.roundHistory || {},
-        readyNext: false
+        roundHistory: u.roundHistory || {}
       };
     });
 
@@ -670,6 +678,8 @@
       usedWords: usedWords,
       timer: DRAW_TIME,
       users: updatedUsers
+    }).then(() => {
+      isTransitioning = false;
     });
   }
 
