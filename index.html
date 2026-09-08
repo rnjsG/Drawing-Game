@@ -162,8 +162,10 @@
         <div class="keyword">제시어: <span id="word-display">???</span></div>
         <canvas id="canvas" width="400" height="300"></canvas>
         <div class="controls">
+          <button class="btn btn-secondary" onclick="undoCanvas()">↩️ 실행 취소</button>
+          <button class="btn btn-secondary" onclick="redoCanvas()">↪️ 다시 실행</button>
           <button class="btn btn-secondary" id="clear-btn" onclick="clearCanvas()">전체 지우기</button>
-          <button class="btn" id="submit-draw-btn" onclick="submitDrawing()">그림 제출 완료</button>
+          <button class="btn" id="submit-draw-btn" onclick="submitDrawing(false)">그림 제출 완료</button>
         </div>
       </div>
     </div>
@@ -206,6 +208,7 @@
   let isHost = false;
   let timerInterval = null;
   let hasVoted = false;
+  let lastRoundHandled = 0;
 
   let gameState = {
     roomCode: '',
@@ -305,13 +308,19 @@
       countdownOverlay.style.display = 'none';
     }
 
-    // 화면 전환
+    // 화면 전환 및 라운드 변경 시 캔버스 초기화
     if (gameState.status === 'LOBBY') {
       if (myName) showScreen('lobby-screen');
     } else if (gameState.status === 'PLAYING') {
       showScreen('game-screen');
       document.getElementById('current-round').innerText = gameState.round;
       document.getElementById('word-display').innerText = gameState.word;
+
+      // 새로운 라운드 진입 시 캔버스 깨끗이 초기화
+      if (lastRoundHandled !== gameState.round) {
+        lastRoundHandled = gameState.round;
+        resetCanvasState();
+      }
     } else if (gameState.status === 'ROUND_RESULT') {
       showScreen('result-screen');
       renderResultScreen();
@@ -350,7 +359,6 @@
           } else {
             clearInterval(timerInterval);
             timerInterval = null;
-            // 게임 플레이 시작
             startNewRound(1);
           }
         }, 1000);
@@ -367,7 +375,12 @@
         if (newTime <= 0 || allSubmitted) {
           clearInterval(timerInterval);
           timerInterval = null;
-          // 모두 제출하였거나 시간이 지나면 결과 화면으로 이동
+
+          // 제한 시간 경과 시 미제출 플레이어 자동 제출 처리
+          if (newTime <= 0) {
+            autoSubmitUnfinishedDrawings();
+          }
+
           db.ref('rooms/' + currentRoomCode).update({
             status: 'ROUND_RESULT',
             timer: 0
@@ -384,7 +397,6 @@
         if (gameState.round < TOTAL_ROUNDS) {
           startNewRound(gameState.round + 1);
         } else {
-          // 게임 종료 (최종 승자 안내 등)
           showAlert('게임이 모두 종료되었습니다! 대기실로 이동합니다.');
           db.ref('rooms/' + currentRoomCode).update({
             status: 'LOBBY',
@@ -397,14 +409,25 @@
     }
   }
 
+  // 제한시간 종료 시 자동으로 현재 그림 제출
+  function autoSubmitUnfinishedDrawings() {
+    const myUser = gameState.users[myId];
+    if (myUser && !myUser.submitted) {
+      submitDrawing(true);
+    }
+  }
+
   function startNewRound(roundNum) {
     const nextWord = WORDS[Math.floor(Math.random() * WORDS.length)];
     const updatedUsers = {};
+    
+    // 각 라운드마다 투표수(votes) 0으로 리셋하여 해당 라운드만 집계
     Object.keys(gameState.users || {}).forEach(uid => {
       updatedUsers[uid] = {
         ...gameState.users[uid],
         submitted: false,
         drawing: '',
+        votes: 0,
         readyNext: false
       };
     });
@@ -426,6 +449,7 @@
         ready: false,
         readyNext: false,
         submitted: false,
+        votes: 0,
         drawing: ''
       });
     });
@@ -513,7 +537,8 @@
         gameState.status = 'PLAYING';
         gameState.timer = DRAW_TIME;
         gameState.word = WORDS[Math.floor(Math.random() * WORDS.length)];
-        clearCanvas();
+        gameState.users[myId].votes = 0;
+        resetCanvasState();
         updateUI();
       }
       return;
@@ -528,16 +553,47 @@
 
   function leaveGame() { location.reload(); }
 
-  // Canvas 드로잉 로직
+  // Canvas 히스토리 (실행 취소/다시 실행) 로직
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
   let isDrawing = false;
+  let undoStack = [];
+  let redoStack = [];
+
+  function resetCanvasState() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    undoStack = [];
+    redoStack = [];
+  }
+
+  function saveState() {
+    if (undoStack.length >= 20) undoStack.shift();
+    undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    redoStack = [];
+  }
+
+  function undoCanvas() {
+    if (undoStack.length > 0) {
+      redoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+      const previousState = undoStack.pop();
+      ctx.putImageData(previousState, 0, 0);
+    }
+  }
+
+  function redoCanvas() {
+    if (redoStack.length > 0) {
+      undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+      const nextState = redoStack.pop();
+      ctx.putImageData(nextState, 0, 0);
+    }
+  }
 
   function initCanvas() {
     ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#000';
     
     // 마우스 이벤트
     canvas.addEventListener('mousedown', (e) => {
+      saveState();
       isDrawing = true;
       ctx.beginPath();
       ctx.moveTo(e.offsetX, e.offsetY);
@@ -553,6 +609,7 @@
     // 모바일 터치 이벤트
     canvas.addEventListener('touchstart', (e) => {
       e.preventDefault();
+      saveState();
       const rect = canvas.getBoundingClientRect();
       const touch = e.touches[0];
       isDrawing = true;
@@ -570,16 +627,19 @@
     canvas.addEventListener('touchend', () => isDrawing = false);
   }
 
-  function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+  function clearCanvas() { 
+    saveState();
+    ctx.clearRect(0, 0, canvas.width, canvas.height); 
+  }
 
-  function submitDrawing() {
+  function submitDrawing(isAuto = false) {
     const dataUrl = canvas.toDataURL();
     if (gameMode === 'MULTI') {
       db.ref('rooms/' + currentRoomCode + '/users/' + myId).update({
         drawing: dataUrl,
         submitted: true
       });
-      showAlert('그림 제출이 완료되었습니다! 다른 플레이어를 기다립니다.');
+      if (!isAuto) showAlert('그림 제출이 완료되었습니다! 다른 플레이어를 기다립니다.');
     } else {
       gameState.users[myId].drawing = dataUrl;
       gameState.users[myId].submitted = true;
@@ -588,7 +648,7 @@
     }
   }
 
-  // 제출된 모든 그림 갤러리 출력 및 투표
+  // 제출된 모든 그림 갤러리 출력 및 해당 라운드 표 집계
   function renderResultScreen() {
     const gallery = document.getElementById('gallery');
     gallery.innerHTML = '';
@@ -602,10 +662,9 @@
         item.innerHTML = `
           <img src="${u.drawing}">
           <div style="margin-top:8px;"><b>${u.name}</b></div>
-          <div class="vote-count">❤️ ${voteCount}표</div>
+          <div class="vote-count">❤️ 이번 라운드: ${voteCount}표</div>
         `;
 
-        // 클릭 시 투표 진행
         item.onclick = () => {
           if (u.id === myId) return showAlert('본인 그림에는 투표할 수 없습니다!');
           if (hasVoted) return showAlert('이미 투표하셨습니다!');
