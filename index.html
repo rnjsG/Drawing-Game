@@ -19,6 +19,8 @@
       background: #4a90e2; color: white; padding: 15px 20px;
       display: flex; justify-content: space-between; align-items: center;
     }
+    .header-info { display: flex; align-items: center; gap: 10px; }
+    .room-badge { background: rgba(255, 255, 255, 0.2); padding: 4px 8px; border-radius: 4px; font-size: 14px; font-weight: bold; }
     .menu-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
 
     /* 모달 */
@@ -40,15 +42,18 @@
     .screen.active { display: flex; }
 
     /* 1. 로그인 스크린 */
-    .login-box { text-align: center; width: 100%; max-width: 340px; }
-    .login-box input { width: 100%; padding: 12px; margin: 15px 0; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; text-align: center; }
-    .mode-btn-group { display: flex; gap: 10px; width: 100%; margin-top: 10px; }
-    .mode-btn-group .btn { flex: 1; }
+    .login-box { text-align: center; width: 100%; max-width: 380px; }
+    .login-box input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; text-align: center; }
+    .divider { margin: 15px 0; border-bottom: 1px solid #ddd; position: relative; }
+    .divider span { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: white; padding: 0 10px; color: #888; font-size: 12px; }
+    .join-code-group { display: flex; gap: 8px; margin-top: 8px; }
 
     /* 2. 대기실 스크린 */
     .lobby-layout { display: flex; width: 100%; height: 100%; gap: 20px; }
     .user-list-panel { width: 35%; border-right: 1px solid #eee; padding-right: 15px; overflow-y: auto; }
-    .lobby-main-panel { width: 65%; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .lobby-main-panel { width: 65%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+    .code-display-box { background: #eef5fc; border: 2px dashed #4a90e2; padding: 15px; border-radius: 8px; margin-bottom: 20px; width: 100%; max-width: 300px; }
+    .code-display-box span { font-size: 24px; font-weight: bold; color: #4a90e2; letter-spacing: 2px; }
     .user-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f8f9fa; border-radius: 6px; margin-bottom: 8px; }
     .badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; color: white; font-weight: bold; }
     .badge-ready { background: #2ecc71; }
@@ -64,24 +69,19 @@
     #canvas { border: 2px solid #333; border-radius: 8px; background: white; cursor: crosshair; touch-action: none; }
     .controls { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 
-    /* 5초 남았을 때 타이머 깜빡임 애니메이션 */
+    /* 타이머 깜빡임 */
     @keyframes pulse-red {
       0% { color: #e74c3c; transform: scale(1); opacity: 1; }
       50% { color: #ff0000; transform: scale(1.3); opacity: 0.4; }
       100% { color: #e74c3c; transform: scale(1); opacity: 1; }
     }
-    .timer-warning {
-      animation: pulse-red 0.5s infinite;
-      font-weight: 900 !important;
-      display: inline-block;
-    }
+    .timer-warning { animation: pulse-red 0.5s infinite; font-weight: 900 !important; display: inline-block; }
 
-    /* 4. 결과 및 투표 스크린 */
+    /* 4. 결과 스크린 */
     .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; width: 100%; margin-top: 15px; }
     .gallery-item { border: 1px solid #ccc; border-radius: 8px; padding: 12px; text-align: center; background: #fff; position: relative; }
     .gallery-item img { width: 100%; height: 130px; object-fit: contain; border: 1px solid #eee; border-radius: 4px; }
     
-    /* 막대 그래프 스타일 */
     .vote-bar-container { width: 100%; background: #eee; height: 16px; border-radius: 8px; margin-top: 8px; overflow: hidden; position: relative; }
     .vote-bar { height: 100%; background: #4a90e2; width: 0%; transition: width 0.6s ease-in-out; }
     .vote-count-text { font-size: 12px; margin-top: 3px; font-weight: bold; color: #555; }
@@ -90,7 +90,7 @@
     .next-ready-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 10px; }
 
     /* 공통 버튼 */
-    .btn { padding: 8px 15px; border: none; background: #4a90e2; color: white; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: bold; }
+    .btn { padding: 10px 15px; border: none; background: #4a90e2; color: white; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: bold; }
     .btn:disabled { background: #ccc !important; cursor: not-allowed; }
   </style>
 </head>
@@ -98,16 +98,19 @@
 
 <div id="game-container">
   <header>
-    <div id="room-info">캐치 드로잉</div>
+    <div class="header-info">
+      <div id="room-info">캐치 드로잉</div>
+      <div id="room-code-badge" class="room-badge" style="display:none;">코드: <span id="header-code">-</span></div>
+    </div>
     <button class="menu-btn" onclick="toggleMenu(true)">☰</button>
   </header>
 
   <!-- 메뉴 모달 -->
   <div class="modal-overlay" id="menu-modal">
     <div class="modal-box">
-      <h3>일시 정지</h3>
+      <h3>게임 메뉴</h3>
       <br>
-      <button class="btn btn-secondary" onclick="toggleMenu(false)">게임 재개</button>
+      <button class="btn btn-secondary" onclick="toggleMenu(false)">계속하기</button>
       <button class="btn btn-danger" onclick="leaveGame()">게임 나가기</button>
     </div>
   </div>
@@ -121,14 +124,20 @@
     </div>
   </div>
 
-  <!-- 1. 닉네임 설정 및 모드 선택 화면 -->
+  <!-- 1. 로그인 & 방 코드 설정 화면 -->
   <div class="screen active" id="login-screen">
     <div class="login-box">
-      <h2>닉네임을 입력하고<br>모드를 선택하세요</h2>
-      <input type="text" id="nickname-input" placeholder="닉네임 (최대 8자)" maxlength="8">
-      <div class="mode-btn-group">
-        <button class="btn btn-success" onclick="joinGame('SOLO')">혼자서 하기</button>
-        <button class="btn" onclick="joinGame('MULTI')">함께하기 (멀티)</button>
+      <h2 style="margin-bottom: 15px;">캐치 드로잉 시작하기</h2>
+      <input type="text" id="nickname-input" placeholder="닉네임 입력 (최대 8자)" maxlength="8">
+      
+      <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="createRoom('SOLO')">혼자서 하기</button>
+      <button class="btn" style="width: 100%; margin-top: 8px;" onclick="createRoom('MULTI')">새 방 만들기 (방 코드 생성)</button>
+      
+      <div class="divider"><span>또는 상대방 방에 참여하기</span></div>
+
+      <div class="join-code-group">
+        <input type="text" id="join-code-input" placeholder="방 코드 6자리 입력" maxlength="6" style="margin: 0; uppercase;">
+        <button class="btn btn-warning" style="white-space: nowrap;" onclick="joinByCode()">코드 검색 / 참여</button>
       </div>
     </div>
   </div>
@@ -142,7 +151,13 @@
         <div id="lobby-user-list"></div>
       </div>
       <div class="lobby-main-panel">
-        <h2 id="ready-status-msg" style="margin-bottom: 20px; color: #e67e22;">버튼을 눌러 준비해주세요!</h2>
+        <div class="code-display-box">
+          <div style="font-size:12px; color:#666; margin-bottom:5px;">같이 할 사람에게 코드를 알려주세요!</div>
+          <span id="lobby-room-code">XXXXXX</span>
+          <br>
+          <button class="btn btn-secondary" style="margin-top:10px; padding:4px 10px; font-size:12px;" onclick="copyRoomCode()">코드 복사</button>
+        </div>
+        <h3 id="ready-status-msg" style="margin-bottom: 20px; color: #e67e22;">버튼을 눌러 준비해주세요!</h3>
         <button class="btn" id="ready-btn" onclick="toggleReady()">게임 시작 / 준비 완료</button>
       </div>
     </div>
@@ -151,14 +166,12 @@
   <!-- 3. 게임 진행 화면 -->
   <div class="screen" id="game-screen">
     <div class="game-layout">
-      <!-- 좌측 제출 현황 패널 -->
       <div class="game-sidebar">
         <h3>제출 현황</h3>
         <br>
         <div id="game-user-list"></div>
       </div>
 
-      <!-- 우측 Canvas 그리기 영역 -->
       <div class="game-main">
         <div class="game-header">
           <div>라운드: <span id="current-round">1</span> / 5</div>
@@ -182,7 +195,6 @@
     <h2 id="result-title">그림을 보고 투표해주세요!</h2>
     <div class="gallery" id="gallery"></div>
     
-    <!-- 다음 라운드 진행 준비 패널 -->
     <div class="next-round-panel">
       <button class="btn btn-success" id="next-round-btn" onclick="toggleNextRoundReady()">다음 라운드로 넘어가기</button>
       <div class="next-ready-list" id="next-ready-status" style="display: none;"></div>
@@ -193,7 +205,7 @@
 </div>
 
 <script>
-  // --- 게임 상수 및 변수 ---
+  // --- 게임 상수 및 상태 변수 ---
   const MAX_USERS = 8;
   const TOTAL_ROUNDS = 5;
   const DRAW_TIME = 30;
@@ -202,10 +214,12 @@
   let myId = 'user_' + Math.random().toString(36).substr(2, 9);
   let myName = '';
   let gameMode = 'MULTI'; 
+  let currentRoomCode = '';
+  let channel = null;
   let isSubmitted = false;
 
-  // 게임 상태 객체
   let gameState = {
+    roomCode: '',
     mode: 'MULTI',
     users: [], 
     status: 'LOBBY', 
@@ -214,28 +228,36 @@
     timer: DRAW_TIME
   };
 
-  const channel = new BroadcastChannel('catch_drawing_game');
+  // 6자리 대문자/숫자 랜덤 코드 생성기
+  function generateRoomCode() {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+  }
 
-  // --- 통신 및 상태 동기화 ---
-  channel.onmessage = (event) => {
-    const { type, payload } = event.data;
-    if (type === 'SYNC_STATE') {
-      gameState = payload;
-      updateUI();
-    } else if (type === 'REQ_SYNC') {
-      if (isHost()) broadcastState();
-    }
-  };
+  // 브로드캐스트 채널 바인딩
+  function connectChannel(code) {
+    if (channel) channel.close();
+    channel = new BroadcastChannel('catch_drawing_' + code);
+
+    channel.onmessage = (event) => {
+      const { type, payload } = event.data;
+      if (type === 'SYNC_STATE') {
+        gameState = payload;
+        updateUI();
+      } else if (type === 'REQ_SYNC') {
+        if (isHost()) broadcastState();
+      }
+    };
+  }
 
   function broadcastState() {
-    if (gameMode === 'MULTI') {
+    if (gameMode === 'MULTI' && channel) {
       channel.postMessage({ type: 'SYNC_STATE', payload: gameState });
     }
     updateUI();
   }
 
   function requestSync() {
-    if (gameMode === 'MULTI') {
+    if (gameMode === 'MULTI' && channel) {
       channel.postMessage({ type: 'REQ_SYNC' });
     }
   }
@@ -244,7 +266,7 @@
     return gameMode === 'SOLO' || (gameState.users.length > 0 && gameState.users[0].id === myId);
   }
 
-  // --- UI 제어 ---
+  // --- 화면 및 UI 관리 ---
   function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(screenId).classList.add('active');
@@ -263,8 +285,23 @@
     document.getElementById('menu-modal').classList.toggle('active', show);
   }
 
+  function copyRoomCode() {
+    navigator.clipboard.writeText(currentRoomCode).then(() => {
+      showAlert('방 코드가 클립보드에 복사되었습니다: ' + currentRoomCode);
+    });
+  }
+
   function updateUI() {
     const me = gameState.users.find(u => u.id === myId);
+
+    // 헤더 코드 표시
+    if (currentRoomCode && gameMode === 'MULTI') {
+      document.getElementById('room-code-badge').style.display = 'block';
+      document.getElementById('header-code').innerText = currentRoomCode;
+      document.getElementById('lobby-room-code').innerText = currentRoomCode;
+    } else {
+      document.getElementById('room-code-badge').style.display = 'none';
+    }
 
     // 1. 대기실 UI
     document.getElementById('user-count').innerText = gameState.users.length;
@@ -283,7 +320,7 @@
     if (me && gameState.status === 'LOBBY') {
       document.getElementById('ready-status-msg').innerText = me.ready 
         ? "다른 참여자가 준비되기를 기다리는 중입니다..." 
-        : "게임 시작 버튼을 눌러주세요!";
+        : "버튼을 눌러 준비 완료해주세요!";
     }
 
     // 2. 게임 제출 현황 UI
@@ -299,7 +336,7 @@
       gameUserList.appendChild(div);
     });
 
-    // 3. 타이머 제어 (5초 이하 긴장감 연출)
+    // 3. 타이머 제어
     const timerElem = document.getElementById('timer');
     timerElem.innerText = gameState.timer;
     if (gameState.timer <= 5 && gameState.status === 'PLAYING') {
@@ -323,8 +360,8 @@
     updateUndoRedoBtnState();
   }
 
-  // --- 플레이 모드 및 방 입장 ---
-  function joinGame(selectedMode) {
+  // --- 방 생성 및 코드 입장 ---
+  function createRoom(selectedMode) {
     const input = document.getElementById('nickname-input');
     const name = input.value.trim();
     if (!name) return showAlert('닉네임을 입력해주세요.');
@@ -334,23 +371,52 @@
     gameState.mode = selectedMode;
 
     if (gameMode === 'SOLO') {
-      document.getElementById('room-info').innerText = '캐치 드로잉 (솔로 모드)';
+      document.getElementById('room-info').innerText = '캐치 드로잉 (솔로)';
       gameState.users = [{ id: myId, name: myName, ready: true, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false }];
       startNewRound(1);
     } else {
-      document.getElementById('room-info').innerText = '캐치 드로잉 (멀티 모드)';
-      if (gameState.users.length >= MAX_USERS) {
-        return showAlert('참여 인원이 가득 찼습니다. (최대 8명)');
-      }
-      requestSync();
-      setTimeout(() => {
-        if (!gameState.users.find(u => u.id === myId)) {
-          gameState.users.push({ id: myId, name: myName, ready: false, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false });
-          broadcastState();
-        }
-        showScreen('lobby-screen');
-      }, 200);
+      currentRoomCode = generateRoomCode();
+      gameState.roomCode = currentRoomCode;
+      document.getElementById('room-info').innerText = '캐치 드로잉 (멀티)';
+      
+      connectChannel(currentRoomCode);
+      
+      gameState.users = [{ id: myId, name: myName, ready: false, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false }];
+      broadcastState();
+      showScreen('lobby-screen');
     }
+  }
+
+  function joinByCode() {
+    const nameInput = document.getElementById('nickname-input');
+    const codeInput = document.getElementById('join-code-input');
+    
+    const name = nameInput.value.trim();
+    const code = codeInput.value.trim().toUpperCase();
+
+    if (!name) return showAlert('닉네임을 입력해주세요.');
+    if (!code || code.length !== 6) return showAlert('올바른 6자리 방 코드를 입력해주세요.');
+
+    myName = name;
+    gameMode = 'MULTI';
+    currentRoomCode = code;
+    
+    document.getElementById('room-info').innerText = '캐치 드로잉 (멀티)';
+    connectChannel(currentRoomCode);
+
+    // 기존 방 동기화 요청
+    requestSync();
+
+    setTimeout(() => {
+      if (gameState.users.length >= MAX_USERS) {
+        return showAlert('해당 방 인원이 가득 찼습니다.');
+      }
+      if (!gameState.users.find(u => u.id === myId)) {
+        gameState.users.push({ id: myId, name: myName, ready: false, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false });
+        broadcastState();
+      }
+      showScreen('lobby-screen');
+    }, 300);
   }
 
   function toggleReady() {
@@ -371,9 +437,11 @@
   }
 
   function leaveGame() {
-    gameState.users = gameState.users.filter(u => u.id !== myId);
-    if (gameState.users.length === 0) gameState.status = 'LOBBY';
-    broadcastState();
+    if (channel) {
+      gameState.users = gameState.users.filter(u => u.id !== myId);
+      broadcastState();
+      channel.close();
+    }
     location.reload();
   }
 
@@ -392,7 +460,6 @@
       u.nextRoundReady = false;
     });
     
-    // 라운드 시작 시 캔버스 완전 초기화
     resetCanvasAndHistory();
     setSubmitUI(false);
     broadcastState();
@@ -428,12 +495,11 @@
     broadcastState();
   }
 
-  // --- Canvas 캔버스 그리기, Undo/Redo 시스템 ---
+  // --- Canvas 캔버스 그리기 및 Undo/Redo ---
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
   let isDrawing = false;
 
-  // 히스토리 관리 스택
   let undoStack = [];
   let redoStack = [];
 
@@ -451,7 +517,6 @@
     canvas.addEventListener('touchmove', (e) => { draw(getTouchPos(e)); e.preventDefault(); });
     canvas.addEventListener('touchend', stopDraw);
 
-    // 단축키 등록 (Ctrl+Z: 실행 취소, Ctrl+Y / Ctrl+Shift+Z: 다시 실행)
     window.addEventListener('keydown', (e) => {
       if (gameState.status !== 'PLAYING' || isSubmitted) return;
       if (e.ctrlKey || e.metaKey) {
@@ -472,7 +537,7 @@
 
   function saveCanvasState() {
     undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-    redoStack = []; // 새로운 획을 그리면 Redo 스택 초기화
+    redoStack = []; 
     updateUndoRedoBtnState();
   }
 
@@ -480,7 +545,6 @@
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     undoStack = [];
     redoStack = [];
-    // 초기 바탕 스냅샷 저장
     undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
     updateUndoRedoBtnState();
   }
@@ -578,7 +642,7 @@
     }
   }
 
-  // --- 투표, 결과, 막대 그래프 및 다음 라운드 진입 ---
+  // --- 결과 및 투표 ---
   function renderResultScreen() {
     const gallery = document.getElementById('gallery');
     const title = document.getElementById('result-title');
@@ -764,7 +828,6 @@
 
   window.onload = () => {
     initCanvas();
-    requestSync();
   };
 </script>
 </body>
