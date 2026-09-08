@@ -90,7 +90,7 @@
     .leaderboard th, .leaderboard td { padding: 10px 12px; text-align: center; border-bottom: 1px solid #eee; font-size: 14px; }
     .leaderboard th { background: #4a90e2; color: white; }
     .leaderboard tr:first-child td { font-size: 16px; font-weight: bold; color: #e67e22; background: #fffdf0; }
-    .round-history-text { font-size: 12px; color: #666; }
+    .round-history-text { font-size: 12px; color: #666; word-break: break-all; }
 
     .btn { padding: 10px 15px; border: none; background: #4a90e2; color: white; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: bold; }
     .btn:disabled { background: #ccc !important; cursor: not-allowed; }
@@ -201,7 +201,7 @@
           <button class="btn btn-secondary" onclick="undoCanvas()">↩️ 실행 취소</button>
           <button class="btn btn-secondary" onclick="redoCanvas()">↪️ 다시 실행</button>
           <button class="btn btn-secondary" id="clear-btn" onclick="clearCanvas()">전체 지우기</button>
-          <button class="btn" id="submit-draw-btn" onclick="submitDrawing(false)">그림 제출 완료</button>
+          <button class="btn" id="submit-draw-btn" onclick="toggleSubmitDrawing()">그림 제출 완료</button>
         </div>
       </div>
     </div>
@@ -266,7 +266,6 @@
   const TOTAL_ROUNDS = 5;
   const DRAW_TIME = 30;
 
-  // 150개 단어장
   const WORDS_POOL = [
     "강아지", "고양이", "호랑이", "사자", "코끼리", "기린", "펭귄", "캥거루", "판다", "돌고래", 
     "상어", "문어", "오징어", "개구리", "뱀", "독수리", "부엉이", "나비", "꿀벌", "무당벌레", 
@@ -295,6 +294,7 @@
   let isForcedStart = false;
   let votedTargetId = null;
   let lastRoundHandled = 0;
+  let hasAutoSubmitted = false;
 
   let gameState = {
     roomCode: '',
@@ -412,6 +412,16 @@
       gameUserList.appendChild(div);
     });
 
+    // 제출 버튼 UI 조절 (제출 완료 vs 제출 취소)
+    const submitBtn = document.getElementById('submit-draw-btn');
+    if (myUser && myUser.submitted) {
+      submitBtn.innerText = "제출 취소";
+      submitBtn.className = "btn btn-danger";
+    } else {
+      submitBtn.innerText = "그림 제출 완료";
+      submitBtn.className = "btn";
+    }
+
     // 결과 화면 준비 목록
     const resultUserList = document.getElementById('result-user-list');
     if (resultUserList) {
@@ -431,6 +441,12 @@
       timerElem.classList.add('timer-warning');
     } else {
       timerElem.classList.remove('timer-warning');
+    }
+
+    // 시간이 다 되거나 라운드 결과로 넘어갈 때 자동으로 현재 그림 제출
+    if ((gameState.status === 'ROUND_RESULT' || gameState.timer <= 0) && !hasAutoSubmitted) {
+      hasAutoSubmitted = true;
+      forceSubmitDrawing();
     }
 
     const countdownOverlay = document.getElementById('start-countdown-overlay');
@@ -458,6 +474,7 @@
       if (lastRoundHandled !== gameState.round) {
         lastRoundHandled = gameState.round;
         votedTargetId = null;
+        hasAutoSubmitted = false;
         resetCanvasState();
       }
     } else if (gameState.status === 'ROUND_RESULT') {
@@ -505,9 +522,6 @@
           clearInterval(timerInterval);
           timerInterval = null;
 
-          autoSubmitCurrentCanvas();
-          saveRoundVotesToHistory();
-
           db.ref('rooms/' + currentRoomCode).update({
             status: 'ROUND_RESULT',
             timer: 0
@@ -527,13 +541,18 @@
     }
   }
 
+  // 매 라운드 종료 직전 득표 내역을 기록
   function saveRoundVotesToHistory() {
     const currentRound = gameState.round;
     Object.keys(gameState.users || {}).forEach(uid => {
       const u = gameState.users[uid];
       const history = u.roundHistory || {};
       history[`r${currentRound}`] = u.votes || 0;
-      db.ref('rooms/' + currentRoomCode + '/users/' + uid + '/roundHistory').set(history);
+      if (gameMode === 'MULTI') {
+        db.ref('rooms/' + currentRoomCode + '/users/' + uid + '/roundHistory').set(history);
+      } else {
+        u.roundHistory = history;
+      }
     });
   }
 
@@ -576,25 +595,15 @@
   }
 
   function proceedNextRoundStep() {
+    saveRoundVotesToHistory();
     if (gameState.round < TOTAL_ROUNDS) {
       startNewRound(gameState.round + 1);
     } else {
-      db.ref('rooms/' + currentRoomCode).update({ status: 'FINAL_RESULT' });
-    }
-  }
-
-  function autoSubmitCurrentCanvas() {
-    const myUser = gameState.users[myId];
-    if (myUser && !myUser.drawing) {
-      const dataUrl = canvas.toDataURL();
       if (gameMode === 'MULTI') {
-        db.ref('rooms/' + currentRoomCode + '/users/' + myId).update({
-          drawing: dataUrl,
-          submitted: true
-        });
+        db.ref('rooms/' + currentRoomCode).update({ status: 'FINAL_RESULT' });
       } else {
-        gameState.users[myId].drawing = dataUrl;
-        gameState.users[myId].submitted = true;
+        gameState.status = 'FINAL_RESULT';
+        updateUI();
       }
     }
   }
@@ -733,9 +742,7 @@
 
   function toggleReadyNextRound() {
     if (gameMode === 'SOLO') {
-      if(!gameState.users[myId].roundHistory) gameState.users[myId].roundHistory = {};
-      gameState.users[myId].roundHistory[`r${gameState.round}`] = gameState.users[myId].votes || 0;
-
+      saveRoundVotesToHistory();
       gameState.round++;
       if (gameState.round > TOTAL_ROUNDS) {
         gameState.status = 'FINAL_RESULT';
@@ -849,14 +856,40 @@
     ctx.clearRect(0, 0, canvas.width, canvas.height); 
   }
 
-  function submitDrawing(isAuto = false) {
+  // 제출 토글 (제출하기 / 제출 취소하기)
+  function toggleSubmitDrawing() {
+    if (gameState.timer <= 0) {
+      return showAlert('제한시간이 끝나 제출 상태를 변경할 수 없습니다.');
+    }
+
+    const myUser = gameState.users[myId];
+    const isSubmitted = myUser?.submitted || false;
+
+    if (isSubmitted) {
+      // 제출 취소 처리
+      if (gameMode === 'MULTI') {
+        db.ref('rooms/' + currentRoomCode + '/users/' + myId).update({
+          submitted: false
+        });
+      } else {
+        gameState.users[myId].submitted = false;
+        updateUI();
+      }
+      showAlert('그림 제출을 취소했습니다. 다시 그린 후 다시 제출할 수 있습니다.');
+    } else {
+      // 제출하기 처리
+      forceSubmitDrawing();
+      showAlert('그림 제출이 완료되었습니다!');
+    }
+  }
+
+  function forceSubmitDrawing() {
     const dataUrl = canvas.toDataURL();
     if (gameMode === 'MULTI') {
       db.ref('rooms/' + currentRoomCode + '/users/' + myId).update({
         drawing: dataUrl,
         submitted: true
       });
-      if (!isAuto) showAlert('그림 제출이 완료되었습니다! 다른 플레이어를 기다립니다.');
     } else {
       gameState.users[myId].drawing = dataUrl;
       gameState.users[myId].submitted = true;
