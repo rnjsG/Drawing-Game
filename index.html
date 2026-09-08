@@ -12,7 +12,7 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; }
     body { background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-    #game-container { width: 95%; max-width: 900px; height: 90vh; max-height: 800px; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); position: relative; display: flex; flex-direction: column; overflow: hidden; }
+    #game-container { width: 95%; max-width: 900px; height: 95vh; max-height: 850px; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); position: relative; display: flex; flex-direction: column; overflow: hidden; }
     header { background: #4a90e2; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
     .header-info { display: flex; align-items: center; gap: 10px; }
     .room-badge { background: rgba(255, 255, 255, 0.2); padding: 4px 8px; border-radius: 4px; font-size: 14px; font-weight: bold; }
@@ -23,7 +23,6 @@
     .modal-box { background: white; padding: 25px; border-radius: 8px; text-align: center; width: 80%; max-width: 320px; }
     .modal-box button { margin: 8px; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; }
     
-    /* 5초 전 카운트다운 오버레이 */
     #start-countdown-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; z-index: 90; display: none; }
     #start-countdown-num { font-size: 96px; font-weight: bold; color: #f1c40f; margin-top: 10px; }
 
@@ -56,22 +55,34 @@
     .game-layout { display: flex; width: 100%; height: 100%; gap: 15px; }
     .game-sidebar { width: 30%; border-right: 1px solid #eee; padding-right: 10px; }
     .game-main { width: 70%; display: flex; flex-direction: column; align-items: center; }
-    .game-header { display: flex; justify-content: space-between; width: 100%; margin-bottom: 10px; font-weight: bold; font-size: 18px; }
+    .game-header { display: flex; justify-content: space-between; width: 100%; margin-bottom: 5px; font-weight: bold; font-size: 18px; }
     
-    /* 타이머 5초 이하 경고 스타일 */
     .timer-warning { color: #e74c3c !important; animation: blink 0.5s infinite alternate; font-size: 22px; font-weight: bold; }
     @keyframes blink { from { opacity: 1; } to { opacity: 0.3; } }
 
-    .keyword { font-size: 22px; color: #e74c3c; margin-bottom: 10px; font-weight: bold; }
+    .keyword { font-size: 20px; color: #e74c3c; margin-bottom: 8px; font-weight: bold; }
     #canvas { border: 2px solid #333; border-radius: 8px; background: white; cursor: crosshair; touch-action: none; }
-    .controls { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
     
-    .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; width: 100%; margin-top: 15px; max-height: 450px; overflow-y: auto; padding: 10px; }
+    /* 펜 색상 및 굵기 컨트롤 */
+    .palette { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+    .color-dot { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #ddd; cursor: pointer; transition: transform 0.1s; }
+    .color-dot.active { transform: scale(1.25); border-color: #333; }
+    .size-select { margin-left: 10px; padding: 3px 6px; border-radius: 4px; border: 1px solid #ccc; font-size: 12px; }
+
+    .controls { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+    
+    .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; width: 100%; margin-top: 15px; max-height: 400px; overflow-y: auto; padding: 10px; }
     .gallery-item { border: 2px solid #ddd; border-radius: 8px; padding: 12px; text-align: center; background: #fff; cursor: pointer; transition: transform 0.2s, border-color 0.2s; }
     .gallery-item:hover { transform: translateY(-3px); border-color: #4a90e2; }
     .gallery-item.voted { border-color: #2ecc71; background-color: #eafaf1; }
     .gallery-item img { width: 100%; height: 130px; object-fit: contain; border: 1px solid #eee; border-radius: 4px; background: white; }
     .vote-count { margin-top: 5px; font-weight: bold; color: #e74c3c; }
+
+    /* 최종 결과 리더보드 */
+    .leaderboard { width: 100%; max-width: 450px; margin-top: 15px; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .leaderboard th, .leaderboard td { padding: 12px 15px; text-align: center; border-bottom: 1px solid #eee; }
+    .leaderboard th { background: #4a90e2; color: white; }
+    .leaderboard tr:first-child td { font-size: 18px; font-weight: bold; color: #e67e22; background: #fffdf0; }
 
     .btn { padding: 10px 15px; border: none; background: #4a90e2; color: white; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: bold; }
     .btn:disabled { background: #ccc !important; cursor: not-allowed; }
@@ -88,7 +99,6 @@
     <button class="menu-btn" onclick="toggleMenu(true)">☰</button>
   </header>
 
-  <!-- 게임 시작 전 카운트다운 레이어 -->
   <div id="start-countdown-overlay">
     <h2>잠시 후 게임이 시작됩니다!</h2>
     <div id="start-countdown-num">5</div>
@@ -160,7 +170,23 @@
           <div>남은 시간: <span id="timer">30</span>초</div>
         </div>
         <div class="keyword">제시어: <span id="word-display">???</span></div>
-        <canvas id="canvas" width="400" height="300"></canvas>
+        <canvas id="canvas" width="400" height="270"></canvas>
+        
+        <!-- 팔레트 (색상 및 두께 선택) -->
+        <div class="palette">
+          <div class="color-dot active" style="background:#000000;" onclick="setColor('#000000', this)"></div>
+          <div class="color-dot" style="background:#e74c3c;" onclick="setColor('#e74c3c', this)"></div>
+          <div class="color-dot" style="background:#3498db;" onclick="setColor('#3498db', this)"></div>
+          <div class="color-dot" style="background:#2ecc71;" onclick="setColor('#2ecc71', this)"></div>
+          <div class="color-dot" style="background:#f1c40f;" onclick="setColor('#f1c40f', this)"></div>
+          <div class="color-dot" style="background:#e84393;" onclick="setColor('#e84393', this)"></div>
+          <select class="size-select" onchange="setLineWidth(this.value)">
+            <option value="3">얇게</option>
+            <option value="6" selected>보통</option>
+            <option value="12">두껍게</option>
+          </select>
+        </div>
+
         <div class="controls">
           <button class="btn btn-secondary" onclick="undoCanvas()">↩️ 실행 취소</button>
           <button class="btn btn-secondary" onclick="redoCanvas()">↪️ 다시 실행</button>
@@ -171,14 +197,31 @@
     </div>
   </div>
 
-  <!-- 4. 결과 화면 -->
+  <!-- 4. 라운드 결과 화면 -->
   <div class="screen" id="result-screen">
     <h2 id="result-title">그림을 보고 마음에 드는 작품에 투표하세요!</h2>
     <div style="font-size: 13px; color: #666; margin-top: 5px;">(본인 그림에는 투표할 수 없습니다)</div>
     <div class="gallery" id="gallery"></div>
-    <div style="margin-top: 15px; display: flex; gap: 10px; align-items: center;">
+    <div style="margin-top: 15px;">
       <button class="btn btn-success" id="next-round-btn" onclick="toggleReadyNextRound()">다음 라운드 준비 완료</button>
     </div>
+  </div>
+
+  <!-- 5. 5라운드 최종 결과 및 순위 집계 화면 -->
+  <div class="screen" id="final-result-screen">
+    <h2>🏆 게임 최종 결과 🏆</h2>
+    <p style="margin-top: 5px; color: #666;">총 5라운드 동안 가장 많은 표를 받은 우승자입니다!</p>
+    <table class="leaderboard">
+      <thead>
+        <tr>
+          <th>순위</th>
+          <th>플레이어</th>
+          <th>총 획득 표 수</th>
+        </tr>
+      </thead>
+      <tbody id="final-leaderboard-body"></tbody>
+    </table>
+    <button class="btn btn-success" style="margin-top: 25px;" onclick="returnToLobby()">대기실로 돌아가기</button>
   </div>
 </div>
 
@@ -271,7 +314,6 @@
       lobbyList.appendChild(div);
     });
 
-    // 내 준비 상태 버튼 텍스트 변경
     const myUser = gameState.users[myId];
     const readyBtn = document.getElementById('ready-btn');
     if (myUser) {
@@ -279,7 +321,7 @@
       readyBtn.className = myUser.ready ? "btn btn-secondary" : "btn btn-success";
     }
 
-    // 게임 내 유저 제출 현황
+    // 게임 내 제출 현황
     const gameUserList = document.getElementById('game-user-list');
     gameUserList.innerHTML = '';
     usersArr.forEach(u => {
@@ -290,7 +332,7 @@
       gameUserList.appendChild(div);
     });
 
-    // 타이머 UI 처리 (5초 이하 시 빨간색 깜빡임)
+    // 타이머 UI (5초 이하 시 경고)
     const timerElem = document.getElementById('timer');
     timerElem.innerText = gameState.timer;
     if (gameState.timer <= 5 && gameState.status === 'PLAYING') {
@@ -299,7 +341,7 @@
       timerElem.classList.remove('timer-warning');
     }
 
-    // 시작 카운트다운 레이어 (5,4,3,2,1)
+    // 5초 카운트다운 레이어
     const countdownOverlay = document.getElementById('start-countdown-overlay');
     if (gameState.startCountdown > 0) {
       countdownOverlay.style.display = 'flex';
@@ -308,7 +350,7 @@
       countdownOverlay.style.display = 'none';
     }
 
-    // 화면 전환 및 라운드 변경 시 캔버스 초기화
+    // 화면 전환
     if (gameState.status === 'LOBBY') {
       if (myName) showScreen('lobby-screen');
     } else if (gameState.status === 'PLAYING') {
@@ -316,14 +358,18 @@
       document.getElementById('current-round').innerText = gameState.round;
       document.getElementById('word-display').innerText = gameState.word;
 
-      // 새로운 라운드 진입 시 캔버스 깨끗이 초기화
+      // 라운드 변경 시 캔버스 및 중복 투표 체크 변수 초기화
       if (lastRoundHandled !== gameState.round) {
         lastRoundHandled = gameState.round;
+        hasVoted = false; // 중복 투표 방지 리셋
         resetCanvasState();
       }
     } else if (gameState.status === 'ROUND_RESULT') {
       showScreen('result-screen');
       renderResultScreen();
+    } else if (gameState.status === 'FINAL_RESULT') {
+      showScreen('final-result-screen');
+      renderFinalLeaderboard();
     }
   }
 
@@ -334,7 +380,6 @@
         gameState = data;
         updateUI();
 
-        // 방장(Host)이 타이머 및 진행 제어
         if (isHost && gameMode === 'MULTI') {
           handleHostLogic();
         }
@@ -342,11 +387,10 @@
     });
   }
 
-  // 호스트 전용 게임 제어 로직
   function handleHostLogic() {
     const usersArr = Object.values(gameState.users || {});
 
-    // 1. 대기실에서 전원 준비 완료 시 5초 카운트다운 시작
+    // 1. 대기실 전원 준비 시 카운트다운
     if (gameState.status === 'LOBBY' && usersArr.length > 0 && usersArr.every(u => u.ready)) {
       if (gameState.startCountdown === 0 && !timerInterval) {
         let count = 5;
@@ -365,7 +409,7 @@
       }
     }
 
-    // 2. 게임 시작 시 타이머 카운트다운
+    // 2. 타이머 동작
     if (gameState.status === 'PLAYING' && !timerInterval) {
       timerInterval = setInterval(() => {
         let newTime = gameState.timer - 1;
@@ -376,10 +420,7 @@
           clearInterval(timerInterval);
           timerInterval = null;
 
-          // 제한 시간 경과 시 미제출 플레이어 자동 제출 처리
-          if (newTime <= 0) {
-            autoSubmitUnfinishedDrawings();
-          }
+          if (newTime <= 0) autoSubmitUnfinishedDrawings();
 
           db.ref('rooms/' + currentRoomCode).update({
             status: 'ROUND_RESULT',
@@ -391,43 +432,38 @@
       }, 1000);
     }
 
-    // 3. 결과 화면에서 전원 다음 라운드 준비 완료 시 넘어가기
+    // 3. 결과 화면에서 전원 넘어가기 준비 완료 시
     if (gameState.status === 'ROUND_RESULT' && usersArr.length > 0 && usersArr.every(u => u.readyNext)) {
       if (!timerInterval) {
         if (gameState.round < TOTAL_ROUNDS) {
           startNewRound(gameState.round + 1);
         } else {
-          showAlert('게임이 모두 종료되었습니다! 대기실로 이동합니다.');
+          // 5라운드 모두 종료 시 최종 결과 화면으로 전환
           db.ref('rooms/' + currentRoomCode).update({
-            status: 'LOBBY',
-            startCountdown: 0,
-            round: 1
+            status: 'FINAL_RESULT'
           });
-          resetUsersReady();
         }
       }
     }
   }
 
-  // 제한시간 종료 시 자동으로 현재 그림 제출
   function autoSubmitUnfinishedDrawings() {
     const myUser = gameState.users[myId];
-    if (myUser && !myUser.submitted) {
-      submitDrawing(true);
-    }
+    if (myUser && !myUser.submitted) submitDrawing(true);
   }
 
   function startNewRound(roundNum) {
     const nextWord = WORDS[Math.floor(Math.random() * WORDS.length)];
     const updatedUsers = {};
     
-    // 각 라운드마다 투표수(votes) 0으로 리셋하여 해당 라운드만 집계
     Object.keys(gameState.users || {}).forEach(uid => {
+      const u = gameState.users[uid];
       updatedUsers[uid] = {
-        ...gameState.users[uid],
+        ...u,
         submitted: false,
         drawing: '',
         votes: 0,
+        totalVotes: (u.totalVotes || 0) + (u.votes || 0), // 누적 표수 합산
         readyNext: false
       };
     });
@@ -440,7 +476,21 @@
       timer: DRAW_TIME,
       users: updatedUsers
     });
-    hasVoted = false;
+  }
+
+  function returnToLobby() {
+    if (gameMode === 'SOLO') {
+      showScreen('login-screen');
+      return;
+    }
+    if (isHost) {
+      db.ref('rooms/' + currentRoomCode).update({
+        status: 'LOBBY',
+        startCountdown: 0,
+        round: 1
+      });
+      resetUsersReady();
+    }
   }
 
   function resetUsersReady() {
@@ -450,6 +500,7 @@
         readyNext: false,
         submitted: false,
         votes: 0,
+        totalVotes: 0,
         drawing: ''
       });
     });
@@ -469,7 +520,7 @@
       gameState = {
         roomCode: 'SOLO',
         hostId: myId,
-        users: { [myId]: { id: myId, name: myName, ready: true, votes: 0, drawing: '', submitted: false } },
+        users: { [myId]: { id: myId, name: myName, ready: true, votes: 0, totalVotes: 0, drawing: '', submitted: false } },
         status: 'PLAYING', round: 1, word: WORDS[0], timer: DRAW_TIME
       };
       updateUI();
@@ -477,7 +528,7 @@
       currentRoomCode = generateRoomCode();
       isHost = true;
       const initialUsers = {};
-      initialUsers[myId] = { id: myId, name: myName, ready: false, votes: 0, drawing: '', submitted: false };
+      initialUsers[myId] = { id: myId, name: myName, ready: false, votes: 0, totalVotes: 0, drawing: '', submitted: false };
 
       db.ref('rooms/' + currentRoomCode).set({
         roomCode: currentRoomCode,
@@ -514,7 +565,7 @@
       }
 
       db.ref('rooms/' + code + '/users/' + myId).set({
-        id: myId, name: myName, ready: false, votes: 0, drawing: '', submitted: false
+        id: myId, name: myName, ready: false, votes: 0, totalVotes: 0, drawing: '', submitted: false
       }).then(() => {
         listenToRoom(code);
       });
@@ -531,16 +582,15 @@
     if (gameMode === 'SOLO') {
       gameState.round++;
       if (gameState.round > TOTAL_ROUNDS) {
-        showAlert('게임이 완료되었습니다!');
-        showScreen('login-screen');
+        gameState.status = 'FINAL_RESULT';
       } else {
         gameState.status = 'PLAYING';
         gameState.timer = DRAW_TIME;
         gameState.word = WORDS[Math.floor(Math.random() * WORDS.length)];
         gameState.users[myId].votes = 0;
         resetCanvasState();
-        updateUI();
       }
+      updateUI();
       return;
     }
 
@@ -553,12 +603,22 @@
 
   function leaveGame() { location.reload(); }
 
-  // Canvas 히스토리 (실행 취소/다시 실행) 로직
+  // Canvas 드로잉, 히스토리, 펜 색상/굵기 제어
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
   let isDrawing = false;
   let undoStack = [];
   let redoStack = [];
+  let currentColor = '#000000';
+  let currentWidth = 6;
+
+  function setColor(color, elem) {
+    currentColor = color;
+    document.querySelectorAll('.color-dot').forEach(dot => dot.classList.remove('active'));
+    elem.classList.add('active');
+  }
+
+  function setLineWidth(width) { currentWidth = width; }
 
   function resetCanvasState() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -589,12 +649,14 @@
   }
 
   function initCanvas() {
-    ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#000';
-    
-    // 마우스 이벤트
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
     canvas.addEventListener('mousedown', (e) => {
       saveState();
       isDrawing = true;
+      ctx.strokeStyle = currentColor;
+      ctx.lineWidth = currentWidth;
       ctx.beginPath();
       ctx.moveTo(e.offsetX, e.offsetY);
     });
@@ -606,13 +668,14 @@
     canvas.addEventListener('mouseup', () => isDrawing = false);
     canvas.addEventListener('mouseleave', () => isDrawing = false);
 
-    // 모바일 터치 이벤트
     canvas.addEventListener('touchstart', (e) => {
       e.preventDefault();
       saveState();
       const rect = canvas.getBoundingClientRect();
       const touch = e.touches[0];
       isDrawing = true;
+      ctx.strokeStyle = currentColor;
+      ctx.lineWidth = currentWidth;
       ctx.beginPath();
       ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
     });
@@ -648,7 +711,7 @@
     }
   }
 
-  // 제출된 모든 그림 갤러리 출력 및 해당 라운드 표 집계
+  // 갤러리 투표 화면
   function renderResultScreen() {
     const gallery = document.getElementById('gallery');
     gallery.innerHTML = '';
@@ -667,7 +730,7 @@
 
         item.onclick = () => {
           if (u.id === myId) return showAlert('본인 그림에는 투표할 수 없습니다!');
-          if (hasVoted) return showAlert('이미 투표하셨습니다!');
+          if (hasVoted) return showAlert('이번 라운드는 이미 투표하셨습니다!');
 
           hasVoted = true;
           item.classList.add('voted');
@@ -683,6 +746,30 @@
 
         gallery.appendChild(item);
       }
+    });
+  }
+
+  // 5라운드 끝 최종 순위 집계 화면 표
+  function renderFinalLeaderboard() {
+    const tbody = document.getElementById('final-leaderboard-body');
+    tbody.innerHTML = '';
+
+    const sortedUsers = Object.values(gameState.users || {}).map(u => {
+      return {
+        ...u,
+        finalTotalVotes: (u.totalVotes || 0) + (u.votes || 0)
+      };
+    }).sort((a, b) => b.finalTotalVotes - a.finalTotalVotes);
+
+    sortedUsers.forEach((u, index) => {
+      const tr = document.createElement('tr');
+      const rankBadge = index === 0 ? '👑 1위' : `${index + 1}위`;
+      tr.innerHTML = `
+        <td>${rankBadge}</td>
+        <td>${u.name}</td>
+        <td><b>${u.finalTotalVotes}표</b></td>
+      `;
+      tbody.appendChild(tr);
     });
   }
 
