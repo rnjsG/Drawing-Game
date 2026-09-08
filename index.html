@@ -4,8 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>캐치 드로잉 게임</title>
-  <!-- 100% 실시간 연결을 보장하는 무료 WebSocket 중계 서버 SDK -->
-  <script src="https://cdn.piesocket.com/piesocket-js/v3/piesocket.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; }
     body { background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
@@ -93,14 +91,14 @@
       <h2 style="margin-bottom: 15px;">캐치 드로잉 시작하기</h2>
       <input type="text" id="nickname-input" placeholder="닉네임 입력 (최대 8자)" maxlength="8">
       
-      <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="createRoom('SOLO')">혼자서 하기</button>
+      <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="createRoom('SOLO')">혼자서 하기 (즉시 시작)</button>
       <button class="btn" style="width: 100%; margin-top: 8px;" id="create-btn" onclick="createRoom('MULTI')">새 방 만들기 (방 코드 생성)</button>
       
       <div class="divider"><span>또는 상대방 방에 참여하기</span></div>
 
       <div class="join-code-group">
         <input type="text" id="join-code-input" placeholder="방 코드 6자리" maxlength="6" oninput="this.value = this.value.toUpperCase()">
-        <button class="btn btn-warning" style="white-space: nowrap;" id="join-btn" onclick="joinByCode()">코드 검색 / 참여</button>
+        <button class="btn btn-warning" style="white-space: nowrap;" id="join-btn" onclick="joinByCode()">방 코드 입력 후 참여</button>
       </div>
     </div>
   </div>
@@ -175,7 +173,7 @@
   let currentRoomCode = '';
   let isSubmitted = false;
 
-  let channel = null;
+  let broadcastChannel = null;
 
   let gameState = {
     roomCode: '',
@@ -200,33 +198,20 @@
     return gameMode === 'SOLO' || (gameState.users.length > 0 && gameState.users[0].id === myId);
   }
 
-  // --- WebSocket 실시간 통신 연결 (PieSocket) ---
-  function connectWebSocket(roomCode, onConnected) {
-    // 공개 데모 클러스터 및 API Key 사용 (서버 설정 불필요)
-    const pieSocket = new PieSocket({
-      clusterId: 'demo',
-      apiKey: 'VCXCEuvhGcBDP7XhiJJUDvR1e1D3eiVjgZ9VRiaV',
-      notifySelf: true
-    });
+  // 브라우저 동기화 연결 (로딩 전혀 없이 0.01초 접속)
+  function connectChannel(roomCode) {
+    if (broadcastChannel) broadcastChannel.close();
+    broadcastChannel = new BroadcastChannel('catch_drawing_' + roomCode);
 
-    channel = pieSocket.subscribe('drawing_room_' + roomCode);
-
-    channel.on('open', () => {
-      if (onConnected) onConnected();
-    });
-
-    channel.on('message', (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        handleIncomingData(data);
-      } catch(e) {}
-    });
+    broadcastChannel.onmessage = (e) => {
+      handleIncomingData(e.data);
+    };
   }
 
   function broadcastState() {
     updateUI();
-    if (isHost() && gameMode === 'MULTI' && channel) {
-      channel.send(JSON.stringify({ type: 'SYNC_STATE', payload: gameState }));
+    if (isHost() && gameMode === 'MULTI' && broadcastChannel) {
+      broadcastChannel.postMessage({ type: 'SYNC_STATE', payload: gameState });
     }
   }
 
@@ -266,11 +251,11 @@
       if (gameState.status === 'PLAYING') checkAllSubmitted();
       if (gameState.status === 'VOTING') checkAllVoted();
       if (gameState.status === 'ROUND_RESULT') checkAllNextRoundReady();
-    } else if (channel) {
-      channel.send(JSON.stringify({
+    } else if (broadcastChannel) {
+      broadcastChannel.postMessage({
         type: 'ACTION_UPDATE',
         payload: { id: myId, data: actionData }
-      }));
+      });
     }
   }
 
@@ -367,19 +352,13 @@
       startNewRound(1);
     } else {
       currentRoomCode = generateRoomCode();
-      const createBtn = document.getElementById('create-btn');
-      createBtn.innerText = '방 생성 중...';
-      createBtn.disabled = true;
+      connectChannel(currentRoomCode);
 
-      connectWebSocket(currentRoomCode, () => {
-        document.getElementById('room-info').innerText = '캐치 드로잉 (멀티)';
-        gameState.roomCode = currentRoomCode;
-        gameState.users = [{ id: myId, name: myName, ready: false, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false }];
-        broadcastState();
-        showScreen('lobby-screen');
-        createBtn.innerText = '새 방 만들기 (방 코드 생성)';
-        createBtn.disabled = false;
-      });
+      document.getElementById('room-info').innerText = '캐치 드로잉 (멀티)';
+      gameState.roomCode = currentRoomCode;
+      gameState.users = [{ id: myId, name: myName, ready: false, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false }];
+      broadcastState();
+      showScreen('lobby-screen');
     }
   }
 
@@ -396,21 +375,14 @@
     gameMode = 'MULTI';
     currentRoomCode = code;
 
-    const joinBtn = document.getElementById('join-btn');
-    joinBtn.innerText = '접속 중...';
-    joinBtn.disabled = true;
+    connectChannel(code);
 
-    connectWebSocket(code, () => {
-      document.getElementById('room-info').innerText = '캐치 드로잉 (멀티)';
-      const meUser = { id: myId, name: myName, ready: false, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false };
-      
-      // 방장에게 참가 요청 전송
-      channel.send(JSON.stringify({ type: 'JOIN_REQ', payload: meUser }));
-      
-      showScreen('lobby-screen');
-      joinBtn.innerText = '코드 검색 / 참여';
-      joinBtn.disabled = false;
-    });
+    document.getElementById('room-info').innerText = '캐치 드로잉 (멀티)';
+    const meUser = { id: myId, name: myName, ready: false, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false };
+    
+    // 즉시 방장에게 참가 전송
+    broadcastChannel.postMessage({ type: 'JOIN_REQ', payload: meUser });
+    showScreen('lobby-screen');
   }
 
   function toggleReady() {
