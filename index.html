@@ -30,6 +30,7 @@
     .btn-secondary { background: #95a5a6; color: white; }
     .btn-warning { background: #f39c12; color: white; }
     .btn-success { background: #2ecc71; color: white; }
+    .btn-kick { background: #ff4757; color: white; padding: 2px 6px; font-size: 11px; border-radius: 4px; border: none; cursor: pointer; margin-left: 6px; }
     
     .screen { display: none; flex: 1; flex-direction: column; padding: 20px; align-items: center; justify-content: center; width: 100%; overflow-y: auto; }
     .screen.active { display: flex; }
@@ -150,7 +151,7 @@
           <button class="btn btn-secondary" style="margin-top:10px; padding:4px 10px; font-size:12px;" onclick="copyRoomCode()">코드 복사</button>
         </div>
         <h3 id="ready-status-msg" style="margin-bottom: 15px; color: #e67e22;">모든 참여자가 준비를 완료하면 5초 후 게임이 시작됩니다.</h3>
-        <div style="display: flex; gap: 10px; justify-content: center;">
+        <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
           <button class="btn" id="ready-btn" onclick="toggleReady()">준비 완료</button>
           <button class="btn btn-warning" id="host-force-start-btn" style="display: none;" onclick="forceStartGame()">게임 바로 시작 (방장전용)</button>
         </div>
@@ -203,8 +204,9 @@
     <h2>그림을 보고 마음에 드는 작품에 투표하세요!</h2>
     <p style="font-size: 13px; color: #666; margin-top: 5px;">(본인 그림 제외, 내가 투표한 그림을 다시 누르면 <b>투표 취소</b>됩니다)</p>
     <div class="gallery" id="gallery"></div>
-    <div style="margin-top: 15px; text-align: center;">
+    <div style="margin-top: 15px; text-align: center; display: flex; gap: 10px; justify-content: center;">
       <button class="btn btn-success" id="next-round-btn" onclick="toggleReadyNextRound()">다음 라운드 준비 완료</button>
+      <button class="btn btn-warning" id="host-next-round-btn" style="display: none;" onclick="forceNextRound()">다음 라운드 바로 시작 (방장전용)</button>
     </div>
   </div>
 
@@ -293,15 +295,29 @@
   function closeAlert() { document.getElementById('alert-modal').classList.remove('active'); }
   function toggleMenu(show) { document.getElementById('menu-modal').classList.toggle('active', show); }
 
-  // 순수 6자리 방 코드만 복사되도록 수정
   function copyRoomCode() {
     if(!currentRoomCode) return;
     navigator.clipboard.writeText(currentRoomCode).then(() => showAlert('방 코드가 복사되었습니다: ' + currentRoomCode));
   }
 
+  // 강퇴 기능
+  function kickUser(targetUid, targetName) {
+    if (!isHost) return;
+    if (confirm(`${targetName}님을 방에서 강퇴하시겠습니까?`)) {
+      db.ref(`rooms/${currentRoomCode}/users/${targetUid}`).remove();
+    }
+  }
+
   function updateUI() {
     const usersArr = Object.values(gameState.users || {});
     isHost = (gameState.hostId === myId);
+
+    // 내가 강퇴당했을 경우 처리
+    if (gameMode === 'MULTI' && currentRoomCode && gameState.users && !gameState.users[myId]) {
+      alert('방장에 의해 강퇴되었습니다.');
+      location.reload();
+      return;
+    }
 
     if (currentRoomCode && gameMode === 'MULTI') {
       document.getElementById('room-code-badge').style.display = 'block';
@@ -311,7 +327,7 @@
 
     document.getElementById('user-count').innerText = usersArr.length;
     
-    // 대기실 유저 목록
+    // 대기실 유저 목록 UI (방장용 강퇴 버튼 표시)
     const lobbyList = document.getElementById('lobby-user-list');
     lobbyList.innerHTML = '';
     usersArr.forEach(u => {
@@ -320,7 +336,13 @@
       const isMe = u.id === myId ? '(나)' : '';
       const isHostTag = u.id === gameState.hostId ? '👑' : '';
       const badge = u.ready ? `<span class="badge badge-ready">준비 완료</span>` : `<span class="badge badge-wait">대기 중</span>`;
-      div.innerHTML = `<span>${isHostTag} ${u.name} ${isMe}</span> ${badge}`;
+      
+      let kickBtnHtml = '';
+      if (isHost && u.id !== myId) {
+        kickBtnHtml = `<button class="btn-kick" onclick="kickUser('${u.id}', '${u.name}')">강퇴</button>`;
+      }
+
+      div.innerHTML = `<div><span>${isHostTag} ${u.name} ${isMe}</span>${kickBtnHtml}</div> ${badge}`;
       lobbyList.appendChild(div);
     });
 
@@ -331,12 +353,20 @@
       readyBtn.className = myUser.ready ? "btn btn-secondary" : "btn btn-success";
     }
 
-    // 방장 전용 버튼 표시
+    // 방장 전용 바로 시작 버튼 활성화 (대기실)
     const hostStartBtn = document.getElementById('host-force-start-btn');
     if (isHost && gameState.status === 'LOBBY') {
       hostStartBtn.style.display = 'inline-block';
     } else {
       hostStartBtn.style.display = 'none';
+    }
+
+    // 방장 전용 바로 시작 버튼 활성화 (결과 화면)
+    const hostNextBtn = document.getElementById('host-next-round-btn');
+    if (isHost && gameState.status === 'ROUND_RESULT') {
+      hostNextBtn.style.display = 'inline-block';
+    } else {
+      hostNextBtn.style.display = 'none';
     }
 
     // 게임 내 제출 현황
@@ -359,7 +389,7 @@
       timerElem.classList.remove('timer-warning');
     }
 
-    // 카운트다운 레이어 (상태별 정확한 문구 표기)
+    // 카운트다운 레이어 (중복 표기 수정)
     const countdownOverlay = document.getElementById('start-countdown-overlay');
     if (gameState.startCountdown > 0) {
       countdownOverlay.style.display = 'flex';
@@ -437,7 +467,6 @@
 
           if (newTime <= 0) autoSubmitUnfinishedDrawings();
 
-          // 이번 라운드 투표수 기록 저장
           saveRoundVotesToHistory();
 
           db.ref('rooms/' + currentRoomCode).update({
@@ -453,13 +482,7 @@
     // 3. 결과 화면 전원 준비 시 5초 카운트다운
     if (gameState.status === 'ROUND_RESULT' && usersArr.length > 0 && usersArr.every(u => u.readyNext)) {
       if (gameState.startCountdown === 0 && !timerInterval) {
-        startCountdownTimer(5, () => {
-          if (gameState.round < TOTAL_ROUNDS) {
-            startNewRound(gameState.round + 1);
-          } else {
-            db.ref('rooms/' + currentRoomCode).update({ status: 'FINAL_RESULT' });
-          }
-        });
+        startCountdownTimer(5, () => proceedNextRoundStep());
       }
     } else if (gameState.status === 'ROUND_RESULT' && !usersArr.every(u => u.readyNext) && gameState.startCountdown > 0) {
       cancelCountdown();
@@ -501,11 +524,27 @@
     db.ref('rooms/' + currentRoomCode).update({ startCountdown: 0 });
   }
 
-  // 방장 전용 3초 카운트다운 후 시작
+  // 대기실 방장전용 3초 후 강제 시작
   function forceStartGame() {
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = null;
     startCountdownTimer(3, () => startNewRound(1));
+  }
+
+  // 다음 라운드 진행 공통 로직
+  function proceedNextRoundStep() {
+    if (gameState.round < TOTAL_ROUNDS) {
+      startNewRound(gameState.round + 1);
+    } else {
+      db.ref('rooms/' + currentRoomCode).update({ status: 'FINAL_RESULT' });
+    }
+  }
+
+  // 결과 화면 방장전용 3초 후 강제 다음 라운드 진행
+  function forceNextRound() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = null;
+    startCountdownTimer(3, () => proceedNextRoundStep());
   }
 
   function autoSubmitUnfinishedDrawings() {
@@ -647,7 +686,6 @@
 
   function toggleReadyNextRound() {
     if (gameMode === 'SOLO') {
-      // 솔로모드 라운드별 기록 저장
       if(!gameState.users[myId].roundHistory) gameState.users[myId].roundHistory = {};
       gameState.users[myId].roundHistory[`r${gameState.round}`] = gameState.users[myId].votes || 0;
 
@@ -836,7 +874,7 @@
     });
   }
 
-  // 최종 결과 화면: 라운드별 표 수 + 꼴등 똥 이모지 💩
+  // 최종 결과 화면
   function renderFinalLeaderboard() {
     const tbody = document.getElementById('final-leaderboard-body');
     tbody.innerHTML = '';
@@ -866,7 +904,6 @@
       let rankBadge = `${index + 1}위`;
       if (index === 0) rankBadge = '👑 1위';
 
-      // 꼴등 이모지 (플레이어가 2명 이상이고 최하위 표수일 때 표시)
       let poopEmoji = '';
       if (sortedUsers.length > 1 && u.finalTotalVotes === lowestVotes) {
         poopEmoji = ' 💩';
