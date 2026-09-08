@@ -99,9 +99,10 @@
     <button class="menu-btn" onclick="toggleMenu(true)">☰</button>
   </header>
 
+  <!-- 카운트다운 레이어 -->
   <div id="start-countdown-overlay">
     <h2 id="countdown-title">잠시 후 게임이 시작됩니다!</h2>
-    <div id="start-countdown-num">5</div>
+    <div id="start-countdown-num">3</div>
   </div>
 
   <div class="modal-overlay" id="menu-modal">
@@ -254,6 +255,8 @@
   let currentRoomCode = '';
   let isHost = false;
   let timerInterval = null;
+  let countdownTimerInterval = null; // 카운트다운 전용 타이머
+  let isForcedStart = false; // 방장 강제시작 플래그
   let votedTargetId = null;
   let lastRoundHandled = 0;
 
@@ -300,7 +303,6 @@
     navigator.clipboard.writeText(currentRoomCode).then(() => showAlert('방 코드가 복사되었습니다: ' + currentRoomCode));
   }
 
-  // 강퇴 기능
   function kickUser(targetUid, targetName) {
     if (!isHost) return;
     if (confirm(`${targetName}님을 방에서 강퇴하시겠습니까?`)) {
@@ -312,7 +314,6 @@
     const usersArr = Object.values(gameState.users || {});
     isHost = (gameState.hostId === myId);
 
-    // 내가 강퇴당했을 경우 처리
     if (gameMode === 'MULTI' && currentRoomCode && gameState.users && !gameState.users[myId]) {
       alert('방장에 의해 강퇴되었습니다.');
       location.reload();
@@ -327,7 +328,6 @@
 
     document.getElementById('user-count').innerText = usersArr.length;
     
-    // 대기실 유저 목록 UI (방장용 강퇴 버튼 표시)
     const lobbyList = document.getElementById('lobby-user-list');
     lobbyList.innerHTML = '';
     usersArr.forEach(u => {
@@ -353,7 +353,6 @@
       readyBtn.className = myUser.ready ? "btn btn-secondary" : "btn btn-success";
     }
 
-    // 방장 전용 바로 시작 버튼 활성화 (대기실)
     const hostStartBtn = document.getElementById('host-force-start-btn');
     if (isHost && gameState.status === 'LOBBY') {
       hostStartBtn.style.display = 'inline-block';
@@ -361,7 +360,6 @@
       hostStartBtn.style.display = 'none';
     }
 
-    // 방장 전용 바로 시작 버튼 활성화 (결과 화면)
     const hostNextBtn = document.getElementById('host-next-round-btn');
     if (isHost && gameState.status === 'ROUND_RESULT') {
       hostNextBtn.style.display = 'inline-block';
@@ -369,7 +367,6 @@
       hostNextBtn.style.display = 'none';
     }
 
-    // 게임 내 제출 현황
     const gameUserList = document.getElementById('game-user-list');
     gameUserList.innerHTML = '';
     usersArr.forEach(u => {
@@ -380,7 +377,6 @@
       gameUserList.appendChild(div);
     });
 
-    // 타이머 UI
     const timerElem = document.getElementById('timer');
     timerElem.innerText = gameState.timer;
     if (gameState.timer <= 5 && gameState.status === 'PLAYING') {
@@ -389,7 +385,7 @@
       timerElem.classList.remove('timer-warning');
     }
 
-    // 카운트다운 레이어 (중복 표기 수정)
+    // 카운트다운 레이어 표시
     const countdownOverlay = document.getElementById('start-countdown-overlay');
     if (gameState.startCountdown > 0) {
       countdownOverlay.style.display = 'flex';
@@ -399,14 +395,12 @@
       countdownOverlay.style.display = 'none';
     }
 
-    // 다음 라운드 준비 버튼
     const nextBtn = document.getElementById('next-round-btn');
     if (myUser) {
       nextBtn.innerText = myUser.readyNext ? "준비 취소" : "다음 라운드 준비 완료";
       nextBtn.className = myUser.readyNext ? "btn btn-secondary" : "btn btn-success";
     }
 
-    // 화면 전환
     if (gameState.status === 'LOBBY') {
       if (myName) showScreen('lobby-screen');
     } else if (gameState.status === 'PLAYING') {
@@ -445,16 +439,19 @@
   function handleHostLogic() {
     const usersArr = Object.values(gameState.users || {});
 
+    // 강제 시작 카운트다운 진행 중일 때는 자동 조건검사 무시
+    if (isForcedStart) return;
+
     // 1. 대기실 전원 준비 시 5초 카운트다운
     if (gameState.status === 'LOBBY' && usersArr.length > 0 && usersArr.every(u => u.ready)) {
-      if (gameState.startCountdown === 0 && !timerInterval) {
+      if (gameState.startCountdown === 0 && !countdownTimerInterval) {
         startCountdownTimer(5, () => startNewRound(1));
       }
     } else if (gameState.status === 'LOBBY' && !usersArr.every(u => u.ready) && gameState.startCountdown > 0) {
       cancelCountdown();
     }
 
-    // 2. 타이머 동작 (게임 중)
+    // 2. 라운드 진행 중 타이머
     if (gameState.status === 'PLAYING' && !timerInterval) {
       timerInterval = setInterval(() => {
         let newTime = gameState.timer - 1;
@@ -481,7 +478,7 @@
 
     // 3. 결과 화면 전원 준비 시 5초 카운트다운
     if (gameState.status === 'ROUND_RESULT' && usersArr.length > 0 && usersArr.every(u => u.readyNext)) {
-      if (gameState.startCountdown === 0 && !timerInterval) {
+      if (gameState.startCountdown === 0 && !countdownTimerInterval) {
         startCountdownTimer(5, () => proceedNextRoundStep());
       }
     } else if (gameState.status === 'ROUND_RESULT' && !usersArr.every(u => u.readyNext) && gameState.startCountdown > 0) {
@@ -499,17 +496,19 @@
     });
   }
 
+  // 카운트다운 처리 전용 함수 (중복 타이머 방지 완벽 반영)
   function startCountdownTimer(seconds, onComplete) {
+    cancelCountdown(); // 진행 중인 카운트다운 초기화
     let count = seconds;
     db.ref('rooms/' + currentRoomCode).update({ startCountdown: count });
-    
-    timerInterval = setInterval(() => {
+
+    countdownTimerInterval = setInterval(() => {
       count--;
       if (count > 0) {
         db.ref('rooms/' + currentRoomCode).update({ startCountdown: count });
       } else {
-        clearInterval(timerInterval);
-        timerInterval = null;
+        cancelCountdown();
+        isForcedStart = false;
         db.ref('rooms/' + currentRoomCode).update({ startCountdown: 0 });
         onComplete();
       }
@@ -517,34 +516,33 @@
   }
 
   function cancelCountdown() {
-    if (timerInterval) {
-      clearInterval(timerInterval);
-      timerInterval = null;
+    if (countdownTimerInterval) {
+      clearInterval(countdownTimerInterval);
+      countdownTimerInterval = null;
     }
     db.ref('rooms/' + currentRoomCode).update({ startCountdown: 0 });
   }
 
-  // 대기실 방장전용 3초 후 강제 시작
+  // 대기실 - 방장전용 3초 후 게임 시작
   function forceStartGame() {
-    if (timerInterval) clearInterval(timerInterval);
-    timerInterval = null;
+    if (!isHost) return;
+    isForcedStart = true;
     startCountdownTimer(3, () => startNewRound(1));
   }
 
-  // 다음 라운드 진행 공통 로직
+  // 결과 화면 - 방장전용 3초 후 다음 라운드 바로 시작
+  function forceNextRound() {
+    if (!isHost) return;
+    isForcedStart = true;
+    startCountdownTimer(3, () => proceedNextRoundStep());
+  }
+
   function proceedNextRoundStep() {
     if (gameState.round < TOTAL_ROUNDS) {
       startNewRound(gameState.round + 1);
     } else {
       db.ref('rooms/' + currentRoomCode).update({ status: 'FINAL_RESULT' });
     }
-  }
-
-  // 결과 화면 방장전용 3초 후 강제 다음 라운드 진행
-  function forceNextRound() {
-    if (timerInterval) clearInterval(timerInterval);
-    timerInterval = null;
-    startCountdownTimer(3, () => proceedNextRoundStep());
   }
 
   function autoSubmitUnfinishedDrawings() {
