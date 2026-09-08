@@ -529,14 +529,14 @@
       cancelCountdown();
     }
 
-    // 게임 시작 시 방장 타이머 구동 (중복 방지 강화)
+    // 게임 시작 시 방장 타이머 구동
     if (gameState.status === 'PLAYING') {
       if (!timerInterval) {
         timerInterval = setInterval(() => {
           let newTime = gameState.timer - 1;
           const currentUsers = Object.values(gameState.users || {});
           
-          // 라운드가 정상 시작된 상태에서만 판단 (0초 방지: 타이머 시작 후 1초 이상 흐른 시점부터 판단)
+          // 타이머 시작 후 1초 이상 지난 시점에서만 제출 완료 여부 확인
           const allSubmitted = newTime < DRAW_TIME && currentUsers.length > 0 && currentUsers.every(u => u.submitted === true);
 
           if (newTime <= 0 || allSubmitted) {
