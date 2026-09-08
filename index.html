@@ -446,7 +446,8 @@
       timerElem.classList.remove('timer-warning');
     }
 
-    if ((gameState.status === 'ROUND_RESULT' || gameState.timer <= 0) && !hasAutoSubmitted) {
+    // 타임아웃 또는 라운드 종료 시 제출 처리
+    if (gameState.status === 'PLAYING' && gameState.timer <= 0 && !hasAutoSubmitted) {
       hasAutoSubmitted = true;
       forceSubmitDrawing();
     }
@@ -455,7 +456,6 @@
     if (gameState.startCountdown > 0) {
       countdownOverlay.style.display = 'flex';
       
-      // 버그 수정: 다음 라운드와 최종 결과로 분기 처리
       if (gameState.status === 'ROUND_RESULT') {
         document.getElementById('countdown-title').innerText = gameState.round >= TOTAL_ROUNDS ? "잠시 후 최종 결과가 공개됩니다!" : "잠시 후 다음 라운드가 시작됩니다!";
       } else {
@@ -529,30 +529,40 @@
       cancelCountdown();
     }
 
-    if (gameState.status === 'PLAYING' && !timerInterval) {
-      timerInterval = setInterval(() => {
-        let newTime = gameState.timer - 1;
-        const currentUsers = Object.values(gameState.users || {});
-        const allSubmitted = currentUsers.length > 0 && currentUsers.every(u => u.submitted);
+    // 게임 시작 시 방장 타이머 구동 (중복 방지 강화)
+    if (gameState.status === 'PLAYING') {
+      if (!timerInterval) {
+        timerInterval = setInterval(() => {
+          let newTime = gameState.timer - 1;
+          const currentUsers = Object.values(gameState.users || {});
+          
+          // 라운드가 정상 시작된 상태에서만 판단 (0초 방지: 타이머 시작 후 1초 이상 흐른 시점부터 판단)
+          const allSubmitted = newTime < DRAW_TIME && currentUsers.length > 0 && currentUsers.every(u => u.submitted === true);
 
-        if (newTime <= 0 || allSubmitted) {
-          clearInterval(timerInterval);
-          timerInterval = null;
+          if (newTime <= 0 || allSubmitted) {
+            clearInterval(timerInterval);
+            timerInterval = null;
 
-          db.ref('rooms/' + currentRoomCode).update({
-            status: 'ROUND_RESULT',
-            timer: 0,
-            startCountdown: 0
-          });
-        } else {
-          db.ref('rooms/' + currentRoomCode).update({ timer: newTime });
-        }
-      }, 1000);
+            db.ref('rooms/' + currentRoomCode).update({
+              status: 'ROUND_RESULT',
+              timer: 0,
+              startCountdown: 0
+            });
+          } else {
+            db.ref('rooms/' + currentRoomCode).update({ timer: newTime });
+          }
+        }, 1000);
+      }
+    } else {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
     }
 
     if (gameState.status === 'ROUND_RESULT' && usersArr.length > 0 && usersArr.every(u => u.readyNext)) {
       if (gameState.startCountdown === 0 && !countdownTimerInterval) {
-        startCountdownTimer(5, () => proceedNextRoundStep());
+        startCountdownTimer(3, () => proceedNextRoundStep());
       }
     } else if (gameState.status === 'ROUND_RESULT' && !usersArr.every(u => u.readyNext) && gameState.startCountdown > 0) {
       cancelCountdown();
@@ -629,6 +639,12 @@
   }
 
   function startNewRound(roundNum) {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+
+    hasAutoSubmitted = false;
     const usedWords = gameState.usedWords || [];
     const nextWord = getUniqueWord(usedWords);
     usedWords.push(nextWord);
@@ -772,6 +788,7 @@
         gameState.word = getUniqueWord(gameState.usedWords);
         gameState.usedWords.push(gameState.word);
         gameState.users[myId].votes = 0;
+        gameState.users[myId].submitted = false;
         resetCanvasState();
       }
       updateUI();
@@ -959,7 +976,7 @@
       // 투표 취소
       votedTargetId = null;
       if (gameMode === 'MULTI') {
-        db.ref('rooms/' + currentRoomCode + '/users/' + targetUid + '/votes').transaction(v => (v || 1) - 1);
+        db.ref('rooms/' + currentRoomCode + '/users/' + targetUid + '/votes').transaction(v => Math.max(0, (v || 1) - 1));
       } else {
         gameState.users[targetUid].votes = Math.max(0, (gameState.users[targetUid].votes || 0) - 1);
         updateUI();
