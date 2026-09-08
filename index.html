@@ -4,8 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>캐치 드로잉 게임</title>
-  <!-- 가장 안정적인 P2P 통신 라이브러리 (PeerJS) -->
-  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  
+  <!-- Firebase SDK (CDN) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; }
     body { background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
@@ -47,16 +50,9 @@
     .keyword { font-size: 22px; color: #e74c3c; margin-bottom: 10px; font-weight: bold; }
     #canvas { border: 2px solid #333; border-radius: 8px; background: white; cursor: crosshair; touch-action: none; }
     .controls { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-    @keyframes pulse-red { 0% { color: #e74c3c; transform: scale(1); opacity: 1; } 50% { color: #ff0000; transform: scale(1.3); opacity: 0.4; } 100% { color: #e74c3c; transform: scale(1); opacity: 1; } }
-    .timer-warning { animation: pulse-red 0.5s infinite; font-weight: 900 !important; display: inline-block; }
     .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; width: 100%; margin-top: 15px; }
-    .gallery-item { border: 1px solid #ccc; border-radius: 8px; padding: 12px; text-align: center; background: #fff; position: relative; }
+    .gallery-item { border: 1px solid #ccc; border-radius: 8px; padding: 12px; text-align: center; background: #fff; }
     .gallery-item img { width: 100%; height: 130px; object-fit: contain; border: 1px solid #eee; border-radius: 4px; }
-    .vote-bar-container { width: 100%; background: #eee; height: 16px; border-radius: 8px; margin-top: 8px; overflow: hidden; position: relative; }
-    .vote-bar { height: 100%; background: #4a90e2; width: 0%; transition: width 0.6s ease-in-out; }
-    .vote-count-text { font-size: 12px; margin-top: 3px; font-weight: bold; color: #555; }
-    .next-round-panel { margin-top: 20px; text-align: center; width: 100%; padding: 15px; background: #f8f9fa; border-radius: 8px; }
-    .next-ready-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 10px; }
     .btn { padding: 10px 15px; border: none; background: #4a90e2; color: white; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: bold; }
     .btn:disabled { background: #ccc !important; cursor: not-allowed; }
   </style>
@@ -119,7 +115,7 @@
           <button class="btn btn-secondary" style="margin-top:10px; padding:4px 10px; font-size:12px;" onclick="copyRoomCode()">코드 복사</button>
         </div>
         <h3 id="ready-status-msg" style="margin-bottom: 20px; color: #e67e22;">버튼을 눌러 준비해주세요!</h3>
-        <button class="btn" id="ready-btn" onclick="toggleReady()">게임 시작 / 준비 완료</button>
+        <button class="btn" id="ready-btn" onclick="toggleReady()">준비 완료 / 시작</button>
       </div>
     </div>
   </div>
@@ -140,11 +136,8 @@
         <div class="keyword">제시어: <span id="word-display">???</span></div>
         <canvas id="canvas" width="400" height="300"></canvas>
         <div class="controls">
-          <button class="btn btn-secondary" id="undo-btn" onclick="undoDraw()">↩ 실행 취소</button>
-          <button class="btn btn-secondary" id="redo-btn" onclick="redoDraw()">↪ 다시 실행</button>
           <button class="btn btn-secondary" id="clear-btn" onclick="clearCanvas()">전체 지우기</button>
-          <button class="btn" id="submit-draw-btn" onclick="submitDrawing()">그림 완료</button>
-          <button class="btn btn-warning" id="cancel-draw-btn" onclick="cancelSubmission()" style="display: none;">제출 취소 및 수정</button>
+          <button class="btn" id="submit-draw-btn" onclick="submitDrawing()">그림 제출 완료</button>
         </div>
       </div>
     </div>
@@ -152,38 +145,39 @@
 
   <!-- 4. 결과 화면 -->
   <div class="screen" id="result-screen">
-    <h2 id="result-title">그림을 보고 투표해주세요!</h2>
+    <h2 id="result-title">제출된 그림 목록</h2>
     <div class="gallery" id="gallery"></div>
-    
-    <div class="next-round-panel">
-      <button class="btn btn-success" id="next-round-btn" onclick="toggleNextRoundReady()">다음 라운드로 넘어가기</button>
-      <div class="next-ready-list" id="next-ready-status" style="display: none;"></div>
-    </div>
-
-    <div style="margin-top:20px;" id="scoreboard"></div>
   </div>
 </div>
 
 <script>
-  const TOTAL_ROUNDS = 5;
+  // 지후님의 Firebase 설정 정보가 적용되었습니다.
+  const firebaseConfig = {
+    apiKey: "AIzaSyAtNrtS13po1dFnp2ghAUgl3oAFAiW_oRQ",
+    authDomain: "catch-drawing-cd3ad.firebaseapp.com",
+    databaseURL: "https://catch-drawing-cd3ad-default-rtdb.firebaseio.com",
+    projectId: "catch-drawing-cd3ad",
+    storageBucket: "catch-drawing-cd3ad.firebasestorage.app",
+    messagingSenderId: "1050697457191",
+    appId: "1:1050697457191:web:83f8577762c04a36b03802",
+    measurementId: "G-HVFZ8LD7N6"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
   const DRAW_TIME = 30;
-  const WORDS = ["강아지", "피자", "에펠탑", "자는 모습", "오늘 풍경", "고양이", "자동차", "우주선", "사과", "바나나", "로봇", "비행기", "선글라스", "눈사람"];
+  const WORDS = ["강아지", "피자", "에펠탑", "고양이", "자동차", "우주선", "사과", "바나나", "로봇", "비행기", "눈사람"];
 
   let myId = 'u_' + Math.random().toString(36).substr(2, 5);
   let myName = '';
-  let gameMode = 'MULTI'; 
+  let gameMode = 'MULTI';
   let currentRoomCode = '';
-  let isSubmitted = false;
-
-  let peer = null;
-  let hostConn = null;
-  let clientConns = [];
 
   let gameState = {
     roomCode: '',
-    mode: 'MULTI',
-    users: [], 
-    status: 'LOBBY', 
+    users: {},
+    status: 'LOBBY',
     round: 1,
     word: '',
     timer: DRAW_TIME
@@ -192,73 +186,8 @@
   function generateRoomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
     return code;
-  }
-
-  function isHost() {
-    return gameMode === 'SOLO' || (gameState.users.length > 0 && gameState.users[0].id === myId);
-  }
-
-  function broadcastState() {
-    updateUI();
-    if (isHost() && gameMode === 'MULTI') {
-      clientConns.forEach(conn => {
-        if (conn && conn.open) {
-          conn.send({ type: 'SYNC_STATE', payload: gameState });
-        }
-      });
-    }
-  }
-
-  function handleIncomingData(data, conn) {
-    const { type, payload } = data;
-
-    if (type === 'JOIN_REQ') {
-      if (isHost()) {
-        const exists = gameState.users.find(u => u.id === payload.id);
-        if (!exists) {
-          gameState.users.push(payload);
-        }
-        if (!clientConns.includes(conn)) clientConns.push(conn);
-        broadcastState();
-      }
-    } else if (type === 'ACTION_UPDATE') {
-      if (isHost()) {
-        const user = gameState.users.find(u => u.id === payload.id);
-        if (user) {
-          Object.assign(user, payload.data);
-          broadcastState();
-          if (gameState.status === 'LOBBY') checkAllReady();
-          if (gameState.status === 'PLAYING') checkAllSubmitted();
-          if (gameState.status === 'VOTING') checkAllVoted();
-          if (gameState.status === 'ROUND_RESULT') checkAllNextRoundReady();
-        }
-      }
-    } else if (type === 'SYNC_STATE') {
-      gameState = payload;
-      currentRoomCode = gameState.roomCode;
-      updateUI();
-    }
-  }
-
-  function sendToHost(actionData) {
-    if (isHost()) {
-      const user = gameState.users.find(u => u.id === myId);
-      if (user) Object.assign(user, actionData);
-      broadcastState();
-      if (gameState.status === 'LOBBY') checkAllReady();
-      if (gameState.status === 'PLAYING') checkAllSubmitted();
-      if (gameState.status === 'VOTING') checkAllVoted();
-      if (gameState.status === 'ROUND_RESULT') checkAllNextRoundReady();
-    } else if (hostConn && hostConn.open) {
-      hostConn.send({
-        type: 'ACTION_UPDATE',
-        payload: { id: myId, data: actionData }
-      });
-    }
   }
 
   function showScreen(screenId) {
@@ -271,37 +200,27 @@
     document.getElementById('alert-modal').classList.add('active');
   }
 
-  function closeAlert() {
-    document.getElementById('alert-modal').classList.remove('active');
-  }
-
-  function toggleMenu(show) {
-    document.getElementById('menu-modal').classList.toggle('active', show);
-  }
+  function closeAlert() { document.getElementById('alert-modal').classList.remove('active'); }
+  function toggleMenu(show) { document.getElementById('menu-modal').classList.toggle('active', show); }
 
   function copyRoomCode() {
-    if(!currentRoomCode || currentRoomCode === 'XXXXXX') return;
+    if(!currentRoomCode) return;
     navigator.clipboard.writeText(currentRoomCode).then(() => showAlert('방 코드가 복사되었습니다: ' + currentRoomCode));
   }
 
   function updateUI() {
-    const me = gameState.users.find(u => u.id === myId);
+    const usersArr = Object.values(gameState.users || {});
     
-    // 방 코드 UI 업데이트
-    const displayCode = currentRoomCode || gameState.roomCode || 'XXXXXX';
-    if (displayCode !== 'XXXXXX' && gameMode === 'MULTI') {
+    if (currentRoomCode && gameMode === 'MULTI') {
       document.getElementById('room-code-badge').style.display = 'block';
-      document.getElementById('header-code').innerText = displayCode;
-      document.getElementById('lobby-room-code').innerText = displayCode;
-    } else {
-      document.getElementById('room-code-badge').style.display = 'none';
-      document.getElementById('lobby-room-code').innerText = 'XXXXXX';
+      document.getElementById('header-code').innerText = currentRoomCode;
+      document.getElementById('lobby-room-code').innerText = currentRoomCode;
     }
 
-    document.getElementById('user-count').innerText = gameState.users.length;
+    document.getElementById('user-count').innerText = usersArr.length;
     const lobbyList = document.getElementById('lobby-user-list');
     lobbyList.innerHTML = '';
-    gameState.users.forEach(u => {
+    usersArr.forEach(u => {
       const div = document.createElement('div');
       div.className = 'user-item';
       const badge = u.ready ? `<span class="badge badge-ready">준비 완료</span>` : `<span class="badge badge-wait">대기 중</span>`;
@@ -309,13 +228,9 @@
       lobbyList.appendChild(div);
     });
 
-    if (me && gameState.status === 'LOBBY') {
-      document.getElementById('ready-status-msg').innerText = me.ready ? "다른 플레이어를 기다리는 중입니다..." : "버튼을 눌러 준비 완료해주세요!";
-    }
-
     const gameUserList = document.getElementById('game-user-list');
     gameUserList.innerHTML = '';
-    gameState.users.forEach(u => {
+    usersArr.forEach(u => {
       const div = document.createElement('div');
       div.className = 'user-item';
       const badge = u.submitted ? `<span class="badge badge-submitted">제출 완료</span>` : `<span class="badge badge-wait">그리는 중...</span>`;
@@ -323,10 +238,7 @@
       gameUserList.appendChild(div);
     });
 
-    const timerElem = document.getElementById('timer');
-    timerElem.innerText = gameState.timer;
-    if (gameState.timer <= 5 && gameState.status === 'PLAYING') timerElem.classList.add('timer-warning');
-    else timerElem.classList.remove('timer-warning');
+    document.getElementById('timer').innerText = gameState.timer;
 
     if (gameState.status === 'LOBBY') {
       if (myName) showScreen('lobby-screen');
@@ -334,15 +246,22 @@
       showScreen('game-screen');
       document.getElementById('current-round').innerText = gameState.round;
       document.getElementById('word-display').innerText = gameState.word;
-    } else if (gameState.status === 'VOTING' || gameState.status === 'ROUND_RESULT' || gameState.status === 'GAME_OVER') {
+    } else if (gameState.status === 'ROUND_RESULT') {
       showScreen('result-screen');
       renderResultScreen();
     }
-
-    updateUndoRedoBtnState();
   }
 
-  // 방 만들기 (방장)
+  function listenToRoom(code) {
+    db.ref('rooms/' + code).on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        gameState = data;
+        updateUI();
+      }
+    });
+  }
+
   function createRoom(selectedMode) {
     const input = document.getElementById('nickname-input');
     const name = input.value.trim();
@@ -350,46 +269,33 @@
 
     myName = name;
     gameMode = selectedMode;
-    gameState.mode = selectedMode;
 
     if (gameMode === 'SOLO') {
-      document.getElementById('room-info').innerText = '캐치 드로잉 (솔로)';
-      gameState.users = [{ id: myId, name: myName, ready: true, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false }];
-      startNewRound(1);
+      currentRoomCode = 'SOLO';
+      gameState = {
+        roomCode: 'SOLO',
+        users: { [myId]: { id: myId, name: myName, ready: true, score: 0, drawing: '', submitted: false } },
+        status: 'PLAYING', round: 1, word: WORDS[Math.floor(Math.random() * WORDS.length)], timer: DRAW_TIME
+      };
+      updateUI();
     } else {
-      const createBtn = document.getElementById('create-btn');
-      createBtn.innerText = '방 생성 중...';
-      createBtn.disabled = true;
-
       currentRoomCode = generateRoomCode();
-      const peerId = 'catch_room_' + currentRoomCode;
+      const initialUsers = {};
+      initialUsers[myId] = { id: myId, name: myName, ready: false, score: 0, drawing: '', submitted: false };
 
-      peer = new Peer(peerId);
-
-      peer.on('open', () => {
-        document.getElementById('room-info').innerText = '캐치 드로잉 (멀티)';
-        gameState.roomCode = currentRoomCode;
-        gameState.users = [{ id: myId, name: myName, ready: false, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false }];
-        broadcastState();
-        showScreen('lobby-screen');
-        createBtn.innerText = '새 방 만들기 (방 코드 생성)';
-        createBtn.disabled = false;
-      });
-
-      peer.on('connection', (conn) => {
-        clientConns.push(conn);
-        conn.on('data', (data) => handleIncomingData(data, conn));
-      });
-
-      peer.on('error', (err) => {
-        createBtn.innerText = '새 방 만들기 (방 코드 생성)';
-        createBtn.disabled = false;
-        showAlert('방 생성 중 오류가 발생했습니다. 다시 시도해 주세요.');
+      db.ref('rooms/' + currentRoomCode).set({
+        roomCode: currentRoomCode,
+        users: initialUsers,
+        status: 'LOBBY',
+        round: 1,
+        word: WORDS[Math.floor(Math.random() * WORDS.length)],
+        timer: DRAW_TIME
+      }).then(() => {
+        listenToRoom(currentRoomCode);
       });
     }
   }
 
-  // 코드 입력하여 참여하기 (참여자)
   function joinByCode() {
     const nameInput = document.getElementById('nickname-input');
     const codeInput = document.getElementById('join-code-input');
@@ -397,371 +303,94 @@
     const code = codeInput.value.trim().toUpperCase();
 
     if (!name) return showAlert('닉네임을 입력해주세요.');
-    if (!code || code.length !== 6) return showAlert('올바른 6자리 방 코드를 입력해주세요.');
+    if (!code || code.length !== 6) return showAlert('6자리 방 코드를 입력하세요.');
 
     myName = name;
     gameMode = 'MULTI';
-    currentRoomCode = code; // 입력받은 방 코드 고정
+    currentRoomCode = code;
 
-    const joinBtn = document.getElementById('join-btn');
-    joinBtn.innerText = '접속 중...';
-    joinBtn.disabled = true;
+    db.ref('rooms/' + code).once('value', (snapshot) => {
+      if (!snapshot.exists()) {
+        showAlert('존재하지 않는 방 코드입니다.');
+        return;
+      }
 
-    // 참여자용 랜덤 Peer 생성
-    peer = new Peer();
-
-    peer.on('open', () => {
-      const targetHostId = 'catch_room_' + code;
-      hostConn = peer.connect(targetHostId);
-
-      hostConn.on('open', () => {
-        document.getElementById('room-info').innerText = '캐치 드로잉 (멀티)';
-        
-        // 일단 임시로 내 정보를 추가하여 UI 갱신
-        const meUser = { id: myId, name: myName, ready: false, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false };
-        gameState.roomCode = code;
-        gameState.users = [meUser];
-        updateUI();
-        showScreen('lobby-screen');
-
-        // 방장에게 내 참여 정보 전달
-        hostConn.send({ type: 'JOIN_REQ', payload: meUser });
-
-        joinBtn.innerText = '코드 입력 후 참여';
-        joinBtn.disabled = false;
+      db.ref('rooms/' + code + '/users/' + myId).set({
+        id: myId, name: myName, ready: false, score: 0, drawing: '', submitted: false
+      }).then(() => {
+        listenToRoom(code);
       });
-
-      hostConn.on('data', (data) => handleIncomingData(data, hostConn));
-
-      hostConn.on('error', () => {
-        joinBtn.innerText = '코드 입력 후 참여';
-        joinBtn.disabled = false;
-        showAlert('방을 찾을 수 없거나 연결 실패했습니다.');
-      });
-    });
-
-    peer.on('error', () => {
-      joinBtn.innerText = '코드 입력 후 참여';
-      joinBtn.disabled = false;
-      showAlert('방 코드가 존재하지 않거나 접속에 실패했습니다.');
     });
   }
 
   function toggleReady() {
-    const me = gameState.users.find(u => u.id === myId);
-    if (me) sendToHost({ ready: !me.ready });
-  }
+    if (gameMode === 'SOLO') return;
+    const currentReady = gameState.users[myId]?.ready || false;
+    db.ref('rooms/' + currentRoomCode + '/users/' + myId + '/ready').set(!currentReady);
 
-  function checkAllReady() {
-    if (!isHost()) return;
-    const allReady = gameState.users.length > 0 && gameState.users.every(u => u.ready);
-    if (allReady) startNewRound(1);
+    setTimeout(() => {
+      const usersArr = Object.values(gameState.users || {});
+      if (usersArr.length > 0 && usersArr.every(u => u.ready)) {
+        db.ref('rooms/' + currentRoomCode).update({
+          status: 'PLAYING',
+          timer: DRAW_TIME,
+          word: WORDS[Math.floor(Math.random() * WORDS.length)]
+        });
+      }
+    }, 500);
   }
 
   function leaveGame() { location.reload(); }
 
-  // --- 라운드 진행 ---
-  let timerInterval = null;
-  function startNewRound(roundNum) {
-    gameState.status = 'PLAYING';
-    gameState.round = roundNum;
-    gameState.timer = DRAW_TIME;
-    gameState.word = WORDS[Math.floor(Math.random() * WORDS.length)];
-    gameState.users.forEach(u => { u.drawing = null; u.submitted = false; u.votedFor = null; u.nextRoundReady = false; });
-    resetCanvasAndHistory();
-    setSubmitUI(false);
-    broadcastState();
-    startTimer();
-  }
-
-  function startTimer() {
-    if (timerInterval) clearInterval(timerInterval);
-    if (isHost()) {
-      timerInterval = setInterval(() => {
-        gameState.timer--;
-        if (gameState.timer <= 0) {
-          clearInterval(timerInterval);
-          finishDrawingPhase();
-        } else {
-          broadcastState();
-        }
-      }, 1000);
-    }
-  }
-
-  function finishDrawingPhase() {
-    if (timerInterval) clearInterval(timerInterval);
-    const me = gameState.users.find(u => u.id === myId);
-    if (me && !me.submitted) {
-      me.drawing = canvas.toDataURL();
-      me.submitted = true;
-    }
-    gameState.status = (gameMode === 'SOLO') ? 'ROUND_RESULT' : 'VOTING';
-    broadcastState();
-  }
-
-  // --- 캔버스 구현 ---
+  // Canvas 로직
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
   let isDrawing = false;
-  let undoStack = [];
-  let redoStack = [];
 
   function initCanvas() {
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#000';
-    canvas.addEventListener('mousedown', startDraw);
-    canvas.addEventListener('mousemove', draw);
-    canvas.addEventListener('mouseup', stopDraw);
-    canvas.addEventListener('mouseleave', stopDraw);
-    canvas.addEventListener('touchstart', (e) => { startDraw(getTouchPos(e)); e.preventDefault(); });
-    canvas.addEventListener('touchmove', (e) => { draw(getTouchPos(e)); e.preventDefault(); });
-    canvas.addEventListener('touchend', stopDraw);
+    ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#000';
+    canvas.addEventListener('mousedown', (e) => {
+      isDrawing = true;
+      ctx.beginPath();
+      ctx.moveTo(e.offsetX, e.offsetY);
+    });
+    canvas.addEventListener('mousemove', (e) => {
+      if (!isDrawing) return;
+      ctx.lineTo(e.offsetX, e.offsetY);
+      ctx.stroke();
+    });
+    canvas.addEventListener('mouseup', () => isDrawing = false);
+    canvas.addEventListener('mouseleave', () => isDrawing = false);
   }
 
-  function getTouchPos(e) {
-    const rect = canvas.getBoundingClientRect();
-    return { clientX: e.touches[0].clientX - rect.left, clientY: e.touches[0].clientY - rect.top, isTouch: true };
-  }
-
-  function saveCanvasState() {
-    undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-    redoStack = []; 
-    updateUndoRedoBtnState();
-  }
-
-  function resetCanvasAndHistory() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    undoStack = [];
-    redoStack = [];
-    undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-    updateUndoRedoBtnState();
-  }
-
-  function startDraw(e) {
-    if (isSubmitted) return;
-    isDrawing = true;
-    ctx.beginPath();
-    const x = e.isTouch ? e.clientX : e.offsetX;
-    const y = e.isTouch ? e.clientY : e.offsetY;
-    ctx.moveTo(x, y);
-  }
-
-  function draw(e) {
-    if (!isDrawing || isSubmitted) return;
-    const x = e.isTouch ? e.clientX : e.offsetX;
-    const y = e.isTouch ? e.clientY : e.offsetY;
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  }
-
-  function stopDraw() {
-    if (isDrawing) {
-      isDrawing = false;
-      saveCanvasState();
-    }
-  }
-
-  function undoDraw() {
-    if (isSubmitted || undoStack.length <= 1) return;
-    redoStack.push(undoStack.pop());
-    ctx.putImageData(undoStack[undoStack.length - 1], 0, 0);
-    updateUndoRedoBtnState();
-  }
-
-  function redoDraw() {
-    if (isSubmitted || redoStack.length === 0) return;
-    const nextState = redoStack.pop();
-    undoStack.push(nextState);
-    ctx.putImageData(nextState, 0, 0);
-    updateUndoRedoBtnState();
-  }
-
-  function clearCanvas() {
-    if (isSubmitted) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    saveCanvasState();
-  }
-
-  function updateUndoRedoBtnState() {
-    const undoBtn = document.getElementById('undo-btn');
-    const redoBtn = document.getElementById('redo-btn');
-    const clearBtn = document.getElementById('clear-btn');
-    if (undoBtn && redoBtn && clearBtn) {
-      undoBtn.disabled = isSubmitted || undoStack.length <= 1;
-      redoBtn.disabled = isSubmitted || redoStack.length === 0;
-      clearBtn.disabled = isSubmitted;
-    }
-  }
-
-  function setSubmitUI(submitted) {
-    isSubmitted = submitted;
-    document.getElementById('submit-draw-btn').style.display = submitted ? 'none' : 'inline-block';
-    document.getElementById('cancel-draw-btn').style.display = submitted ? 'inline-block' : 'none';
-    updateUndoRedoBtnState();
-  }
+  function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
 
   function submitDrawing() {
-    setSubmitUI(true);
-    sendToHost({ drawing: canvas.toDataURL(), submitted: true });
+    const dataUrl = canvas.toDataURL();
+    if (gameMode === 'MULTI') {
+      db.ref('rooms/' + currentRoomCode + '/users/' + myId).update({
+        drawing: dataUrl, submitted: true
+      });
+      db.ref('rooms/' + currentRoomCode + '/status').set('ROUND_RESULT');
+    } else {
+      gameState.users[myId].drawing = dataUrl;
+      gameState.users[myId].submitted = true;
+      gameState.status = 'ROUND_RESULT';
+      updateUI();
+    }
   }
 
-  function cancelSubmission() {
-    setSubmitUI(false);
-    sendToHost({ submitted: false });
-  }
-
-  function checkAllSubmitted() {
-    if (!isHost()) return;
-    if (gameState.users.every(u => u.submitted)) finishDrawingPhase();
-  }
-
-  // --- 결과 및 투표 ---
   function renderResultScreen() {
     const gallery = document.getElementById('gallery');
-    const title = document.getElementById('result-title');
-    const scoreboard = document.getElementById('scoreboard');
-    const nextBtn = document.getElementById('next-round-btn');
-    const nextStatusPanel = document.getElementById('next-ready-status');
     gallery.innerHTML = '';
-
-    const me = gameState.users.find(u => u.id === myId);
-    const votes = {};
-    let totalVotes = 0;
-    gameState.users.forEach(u => votes[u.id] = 0);
-    gameState.users.forEach(u => {
-      if (u.votedFor && votes[u.votedFor] !== undefined) {
-        votes[u.votedFor]++;
-        totalVotes++;
+    Object.values(gameState.users || {}).forEach(u => {
+      if (u.drawing) {
+        const item = document.createElement('div');
+        item.className = 'gallery-item';
+        item.innerHTML = `<img src="${u.drawing}"><div><b>${u.name}</b></div>`;
+        gallery.appendChild(item);
       }
     });
-
-    if (gameMode === 'SOLO') title.innerText = `제시어 [${gameState.word}] - 내가 그린 그림`;
-    else if (gameState.status === 'VOTING') title.innerText = `제시어 [${gameState.word}] - 그림에 투표해 주세요!`;
-    else if (gameState.status === 'ROUND_RESULT') title.innerText = `라운드 ${gameState.round} 결과 발표!`;
-    else title.innerText = `🏆 최종 게임 종료 🏆`;
-
-    gameState.users.forEach(u => {
-      const item = document.createElement('div');
-      item.className = 'gallery-item';
-      const img = document.createElement('img');
-      img.src = u.drawing || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-      const nameTag = document.createElement('div');
-      nameTag.style.fontWeight = 'bold';
-      nameTag.style.margin = '5px 0';
-      nameTag.innerText = u.name;
-
-      item.appendChild(img);
-      item.appendChild(nameTag);
-
-      if (gameMode === 'MULTI') {
-        if (gameState.status === 'VOTING') {
-          const voteBtn = document.createElement('button');
-          voteBtn.className = 'btn';
-          voteBtn.style.padding = '5px 10px';
-          voteBtn.style.fontSize = '12px';
-          voteBtn.innerText = '투표하기';
-          if (u.id === myId) { voteBtn.disabled = true; voteBtn.innerText = '본인 그림'; }
-          else if (me && me.votedFor) {
-            voteBtn.disabled = true;
-            if (me.votedFor === u.id) voteBtn.innerText = '투표함!';
-          }
-          voteBtn.onclick = () => castVote(u.id);
-          item.appendChild(voteBtn);
-        } else if (gameState.status === 'ROUND_RESULT' || gameState.status === 'GAME_OVER') {
-          const vCount = votes[u.id] || 0;
-          const percent = totalVotes > 0 ? (vCount / totalVotes) * 100 : 0;
-          const barContainer = document.createElement('div');
-          barContainer.className = 'vote-bar-container';
-          const bar = document.createElement('div');
-          bar.className = 'vote-bar';
-          setTimeout(() => { bar.style.width = percent + '%'; }, 100);
-          const countText = document.createElement('div');
-          countText.className = 'vote-count-text';
-          countText.innerText = `${vCount}표 (${Math.round(percent)}%)`;
-          barContainer.appendChild(bar);
-          item.appendChild(barContainer);
-          item.appendChild(countText);
-        }
-      }
-      gallery.appendChild(item);
-    });
-
-    if (gameState.status === 'VOTING') {
-      nextBtn.style.display = 'none';
-      nextStatusPanel.style.display = 'none';
-    } else {
-      nextBtn.style.display = 'inline-block';
-      nextBtn.innerText = me && me.nextRoundReady 
-        ? (gameState.round >= TOTAL_ROUNDS ? "게임 종료 대기 중..." : "다음 라운드 대기 중...") 
-        : (gameState.round >= TOTAL_ROUNDS ? "최종 결과 확인 완료" : "다음 라운드로 넘어가기");
-      
-      if (gameMode === 'MULTI') {
-        nextStatusPanel.style.display = 'flex';
-        nextStatusPanel.innerHTML = gameState.users.map(u => {
-          const badge = u.nextRoundReady ? `<span class="badge badge-ready">완료</span>` : `<span class="badge badge-wait">대기</span>`;
-          return `<div class="user-item" style="padding:4px 8px;"><span>${u.name}</span>&nbsp;${badge}</div>`;
-        }).join('');
-      } else {
-        nextStatusPanel.style.display = 'none';
-      }
-    }
-
-    scoreboard.innerHTML = '<h3>현재 스코어</h3>' + gameState.users.map(u => `<div>${u.name}: ${u.score}점</div>`).join('');
-  }
-
-  function castVote(targetId) {
-    const me = gameState.users.find(u => u.id === myId);
-    if (me && !me.votedFor) sendToHost({ votedFor: targetId });
-  }
-
-  function checkAllVoted() {
-    if (!isHost()) return;
-    if (gameState.users.every(u => u.votedFor !== null)) calculateScores();
-  }
-
-  function calculateScores() {
-    const votes = {};
-    gameState.users.forEach(u => votes[u.id] = 0);
-    gameState.users.forEach(u => {
-      if (u.votedFor && votes[u.votedFor] !== undefined) votes[u.votedFor]++;
-    });
-
-    const sorted = [...gameState.users].sort((a, b) => votes[b.id] - votes[a.id]);
-    if (gameState.users.length <= 3) {
-      if (sorted.length > 0 && votes[sorted[0].id] > 0) {
-        const winner = gameState.users.find(u => u.id === sorted[0].id);
-        if (winner) winner.score += 1;
-      }
-    } else {
-      if (sorted.length > 0 && votes[sorted[0].id] > 0) {
-        const first = gameState.users.find(u => u.id === sorted[0].id);
-        if (first) first.score += 2;
-      }
-      if (sorted.length > 1 && votes[sorted[1].id] > 0) {
-        const second = gameState.users.find(u => u.id === sorted[1].id);
-        if (second) second.score += 1;
-      }
-    }
-    gameState.status = 'ROUND_RESULT';
-    broadcastState();
-  }
-
-  function toggleNextRoundReady() {
-    const me = gameState.users.find(u => u.id === myId);
-    if (me) sendToHost({ nextRoundReady: !me.nextRoundReady });
-  }
-
-  function checkAllNextRoundReady() {
-    if (!isHost()) return;
-    if (gameState.users.every(u => u.nextRoundReady)) {
-      if (gameState.round < TOTAL_ROUNDS) startNewRound(gameState.round + 1);
-      else {
-        gameState.status = 'GAME_OVER';
-        broadcastState();
-      }
-    }
   }
 
   window.onload = () => { initCanvas(); };
