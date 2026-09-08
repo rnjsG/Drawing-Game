@@ -77,10 +77,11 @@
     .gallery-item img { width: 100%; height: 130px; object-fit: contain; border: 1px solid #eee; border-radius: 4px; background: white; }
     .vote-count { margin-top: 5px; font-weight: bold; color: #e74c3c; }
 
-    .leaderboard { width: 100%; max-width: 450px; margin-top: 15px; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-    .leaderboard th, .leaderboard td { padding: 12px 15px; text-align: center; border-bottom: 1px solid #eee; }
+    .leaderboard { width: 100%; max-width: 650px; margin-top: 15px; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .leaderboard th, .leaderboard td { padding: 10px 12px; text-align: center; border-bottom: 1px solid #eee; font-size: 14px; }
     .leaderboard th { background: #4a90e2; color: white; }
-    .leaderboard tr:first-child td { font-size: 18px; font-weight: bold; color: #e67e22; background: #fffdf0; }
+    .leaderboard tr:first-child td { font-size: 16px; font-weight: bold; color: #e67e22; background: #fffdf0; }
+    .round-history-text { font-size: 12px; color: #666; }
 
     .btn { padding: 10px 15px; border: none; background: #4a90e2; color: white; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: bold; }
     .btn:disabled { background: #ccc !important; cursor: not-allowed; }
@@ -203,7 +204,6 @@
     <p style="font-size: 13px; color: #666; margin-top: 5px;">(본인 그림 제외, 내가 투표한 그림을 다시 누르면 <b>투표 취소</b>됩니다)</p>
     <div class="gallery" id="gallery"></div>
     <div style="margin-top: 15px; text-align: center;">
-      <p id="round-ready-status" style="font-size: 14px; color: #e67e22; margin-bottom: 8px;">모두 준비 완료 시 5초 후 다음 라운드로 이동합니다.</p>
       <button class="btn btn-success" id="next-round-btn" onclick="toggleReadyNextRound()">다음 라운드 준비 완료</button>
     </div>
   </div>
@@ -217,6 +217,7 @@
         <tr>
           <th>순위</th>
           <th>플레이어</th>
+          <th>라운드별 획득 표 수</th>
           <th>총 획득 표 수</th>
         </tr>
       </thead>
@@ -251,7 +252,7 @@
   let currentRoomCode = '';
   let isHost = false;
   let timerInterval = null;
-  let votedTargetId = null; // 내가 투표한 유저 ID
+  let votedTargetId = null;
   let lastRoundHandled = 0;
 
   let gameState = {
@@ -292,6 +293,7 @@
   function closeAlert() { document.getElementById('alert-modal').classList.remove('active'); }
   function toggleMenu(show) { document.getElementById('menu-modal').classList.toggle('active', show); }
 
+  // 순수 6자리 방 코드만 복사되도록 수정
   function copyRoomCode() {
     if(!currentRoomCode) return;
     navigator.clipboard.writeText(currentRoomCode).then(() => showAlert('방 코드가 복사되었습니다: ' + currentRoomCode));
@@ -329,7 +331,7 @@
       readyBtn.className = myUser.ready ? "btn btn-secondary" : "btn btn-success";
     }
 
-    // 방장 전용 바로 시작 버튼 활성화
+    // 방장 전용 버튼 표시
     const hostStartBtn = document.getElementById('host-force-start-btn');
     if (isHost && gameState.status === 'LOBBY') {
       hostStartBtn.style.display = 'inline-block';
@@ -357,7 +359,7 @@
       timerElem.classList.remove('timer-warning');
     }
 
-    // 5초 카운트다운 레이어
+    // 카운트다운 레이어 (상태별 정확한 문구 표기)
     const countdownOverlay = document.getElementById('start-countdown-overlay');
     if (gameState.startCountdown > 0) {
       countdownOverlay.style.display = 'flex';
@@ -367,7 +369,7 @@
       countdownOverlay.style.display = 'none';
     }
 
-    // 라운드 준비 완료 버튼 및 상태
+    // 다음 라운드 준비 버튼
     const nextBtn = document.getElementById('next-round-btn');
     if (myUser) {
       nextBtn.innerText = myUser.readyNext ? "준비 취소" : "다음 라운드 준비 완료";
@@ -384,7 +386,7 @@
 
       if (lastRoundHandled !== gameState.round) {
         lastRoundHandled = gameState.round;
-        votedTargetId = null; // 투표 내역 초기화
+        votedTargetId = null;
         resetCanvasState();
       }
     } else if (gameState.status === 'ROUND_RESULT') {
@@ -413,17 +415,16 @@
   function handleHostLogic() {
     const usersArr = Object.values(gameState.users || {});
 
-    // 1. 대기실 전원 준비 완료 시 카운트다운 시작
+    // 1. 대기실 전원 준비 시 5초 카운트다운
     if (gameState.status === 'LOBBY' && usersArr.length > 0 && usersArr.every(u => u.ready)) {
       if (gameState.startCountdown === 0 && !timerInterval) {
-        startCountdownTimer(() => startNewRound(1));
+        startCountdownTimer(5, () => startNewRound(1));
       }
     } else if (gameState.status === 'LOBBY' && !usersArr.every(u => u.ready) && gameState.startCountdown > 0) {
-      // 누군가 준비 취소 시 카운트다운 중단
       cancelCountdown();
     }
 
-    // 2. 타이머 동작 (게임 진행 중)
+    // 2. 타이머 동작 (게임 중)
     if (gameState.status === 'PLAYING' && !timerInterval) {
       timerInterval = setInterval(() => {
         let newTime = gameState.timer - 1;
@@ -436,6 +437,9 @@
 
           if (newTime <= 0) autoSubmitUnfinishedDrawings();
 
+          // 이번 라운드 투표수 기록 저장
+          saveRoundVotesToHistory();
+
           db.ref('rooms/' + currentRoomCode).update({
             status: 'ROUND_RESULT',
             timer: 0
@@ -446,10 +450,10 @@
       }, 1000);
     }
 
-    // 3. 결과 화면에서 전원 준비 완료 시 5초 카운트다운 후 다음 라운드 진행
+    // 3. 결과 화면 전원 준비 시 5초 카운트다운
     if (gameState.status === 'ROUND_RESULT' && usersArr.length > 0 && usersArr.every(u => u.readyNext)) {
       if (gameState.startCountdown === 0 && !timerInterval) {
-        startCountdownTimer(() => {
+        startCountdownTimer(5, () => {
           if (gameState.round < TOTAL_ROUNDS) {
             startNewRound(gameState.round + 1);
           } else {
@@ -458,13 +462,22 @@
         });
       }
     } else if (gameState.status === 'ROUND_RESULT' && !usersArr.every(u => u.readyNext) && gameState.startCountdown > 0) {
-      // 누군가 다음 라운드 준비 취소 시 카운트다운 중단
       cancelCountdown();
     }
   }
 
-  function startCountdownTimer(onComplete) {
-    let count = 5;
+  function saveRoundVotesToHistory() {
+    const currentRound = gameState.round;
+    Object.keys(gameState.users || {}).forEach(uid => {
+      const u = gameState.users[uid];
+      const history = u.roundHistory || {};
+      history[`r${currentRound}`] = u.votes || 0;
+      db.ref('rooms/' + currentRoomCode + '/users/' + uid + '/roundHistory').set(history);
+    });
+  }
+
+  function startCountdownTimer(seconds, onComplete) {
+    let count = seconds;
     db.ref('rooms/' + currentRoomCode).update({ startCountdown: count });
     
     timerInterval = setInterval(() => {
@@ -488,10 +501,11 @@
     db.ref('rooms/' + currentRoomCode).update({ startCountdown: 0 });
   }
 
+  // 방장 전용 3초 카운트다운 후 시작
   function forceStartGame() {
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = null;
-    startNewRound(1);
+    startCountdownTimer(3, () => startNewRound(1));
   }
 
   function autoSubmitUnfinishedDrawings() {
@@ -512,7 +526,7 @@
         submitted: false,
         drawing: '',
         votes: 0,
-        totalVotes: (u.totalVotes || 0) + (u.votes || 0),
+        roundHistory: u.roundHistory || {},
         readyNext: false
       };
     });
@@ -551,7 +565,7 @@
         readyNext: false,
         submitted: false,
         votes: 0,
-        totalVotes: 0,
+        roundHistory: {},
         drawing: ''
       });
     });
@@ -572,7 +586,7 @@
       gameState = {
         roomCode: 'SOLO',
         hostId: myId,
-        users: { [myId]: { id: myId, name: myName, ready: true, votes: 0, totalVotes: 0, drawing: '', submitted: false } },
+        users: { [myId]: { id: myId, name: myName, ready: true, votes: 0, roundHistory: {}, drawing: '', submitted: false } },
         status: 'PLAYING', round: 1, word: initialWord, usedWords: [initialWord], timer: DRAW_TIME
       };
       updateUI();
@@ -580,7 +594,7 @@
       currentRoomCode = generateRoomCode();
       isHost = true;
       const initialUsers = {};
-      initialUsers[myId] = { id: myId, name: myName, ready: false, votes: 0, totalVotes: 0, drawing: '', submitted: false };
+      initialUsers[myId] = { id: myId, name: myName, ready: false, votes: 0, roundHistory: {}, drawing: '', submitted: false };
 
       db.ref('rooms/' + currentRoomCode).set({
         roomCode: currentRoomCode,
@@ -618,7 +632,7 @@
       }
 
       db.ref('rooms/' + code + '/users/' + myId).set({
-        id: myId, name: myName, ready: false, votes: 0, totalVotes: 0, drawing: '', submitted: false
+        id: myId, name: myName, ready: false, votes: 0, roundHistory: {}, drawing: '', submitted: false
       }).then(() => {
         listenToRoom(code);
       });
@@ -633,6 +647,10 @@
 
   function toggleReadyNextRound() {
     if (gameMode === 'SOLO') {
+      // 솔로모드 라운드별 기록 저장
+      if(!gameState.users[myId].roundHistory) gameState.users[myId].roundHistory = {};
+      gameState.users[myId].roundHistory[`r${gameState.round}`] = gameState.users[myId].votes || 0;
+
       gameState.round++;
       if (gameState.round > TOTAL_ROUNDS) {
         gameState.status = 'FINAL_RESULT';
@@ -654,7 +672,7 @@
 
   function leaveGame() { location.reload(); }
 
-  // Canvas 컨트롤
+  // Canvas 드로잉 함수
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
   let isDrawing = false;
@@ -762,7 +780,7 @@
     }
   }
 
-  // 갤러리 및 투표/투표 취소 로직
+  // 결과 및 투표 화면
   function renderResultScreen() {
     const gallery = document.getElementById('gallery');
     gallery.innerHTML = '';
@@ -784,7 +802,6 @@
         item.onclick = () => {
           if (u.id === myId) return showAlert('본인 그림에는 투표할 수 없습니다!');
 
-          // 1. 이미 투표했던 그림을 재클릭시 투표 취소
           if (votedTargetId === u.id) {
             votedTargetId = null;
             if (gameMode === 'MULTI') {
@@ -797,9 +814,7 @@
             return;
           }
 
-          // 2. 다른 그림으로 투표 변경 또는 새로 투표
           if (votedTargetId !== null) {
-            // 이전 투표 대상 표 차감
             const prevTarget = gameState.users[votedTargetId];
             if (prevTarget && gameMode === 'MULTI') {
               db.ref('rooms/' + currentRoomCode + '/users/' + votedTargetId + '/votes').set(Math.max(0, (prevTarget.votes || 0) - 1));
@@ -821,25 +836,47 @@
     });
   }
 
-  // 최종 결과 순위 집계
+  // 최종 결과 화면: 라운드별 표 수 + 꼴등 똥 이모지 💩
   function renderFinalLeaderboard() {
     const tbody = document.getElementById('final-leaderboard-body');
     tbody.innerHTML = '';
 
     const sortedUsers = Object.values(gameState.users || {}).map(u => {
+      const history = u.roundHistory || {};
+      let total = 0;
+      let roundDetails = [];
+
+      for (let r = 1; r <= TOTAL_ROUNDS; r++) {
+        const v = history[`r${r}`] || 0;
+        total += v;
+        roundDetails.push(`${r}R: ${v}표`);
+      }
+
       return {
         ...u,
-        finalTotalVotes: (u.totalVotes || 0) + (u.votes || 0)
+        finalTotalVotes: total,
+        roundDetailsText: roundDetails.join(' | ')
       };
     }).sort((a, b) => b.finalTotalVotes - a.finalTotalVotes);
 
+    const lowestVotes = sortedUsers.length > 0 ? sortedUsers[sortedUsers.length - 1].finalTotalVotes : 0;
+
     sortedUsers.forEach((u, index) => {
       const tr = document.createElement('tr');
-      const rankBadge = index === 0 ? '👑 1위' : `${index + 1}위`;
+      let rankBadge = `${index + 1}위`;
+      if (index === 0) rankBadge = '👑 1위';
+
+      // 꼴등 이모지 (플레이어가 2명 이상이고 최하위 표수일 때 표시)
+      let poopEmoji = '';
+      if (sortedUsers.length > 1 && u.finalTotalVotes === lowestVotes) {
+        poopEmoji = ' 💩';
+      }
+
       tr.innerHTML = `
         <td>${rankBadge}</td>
-        <td>${u.name}</td>
-        <td><b>${u.finalTotalVotes}표</b></td>
+        <td><b>${u.name}</b>${poopEmoji}</td>
+        <td class="round-history-text">${u.roundDetailsText}</td>
+        <td><b style="color:#e74c3c;">${u.finalTotalVotes}표</b></td>
       `;
       tbody.appendChild(tr);
     });
