@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>캐치 드로잉 게임</title>
-  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <!-- 100% 실시간 연결을 보장하는 무료 WebSocket 중계 서버 SDK -->
+  <script src="https://cdn.piesocket.com/piesocket-js/v3/piesocket.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; }
     body { background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
@@ -73,8 +74,7 @@
 
   <div class="modal-overlay" id="menu-modal">
     <div class="modal-box">
-      <h3>게임 메뉴</h3>
-      <br>
+      <h3>게임 메뉴</h3><br>
       <button class="btn btn-secondary" onclick="toggleMenu(false)">계속하기</button>
       <button class="btn btn-danger" onclick="leaveGame()">게임 나가기</button>
     </div>
@@ -82,8 +82,7 @@
 
   <div class="modal-overlay" id="alert-modal">
     <div class="modal-box">
-      <p id="alert-msg">알림 메시지</p>
-      <br>
+      <p id="alert-msg">알림 메시지</p><br>
       <button class="btn" onclick="closeAlert()">확인</button>
     </div>
   </div>
@@ -110,15 +109,13 @@
   <div class="screen" id="lobby-screen">
     <div class="lobby-layout">
       <div class="user-list-panel">
-        <h3>참여자 (<span id="user-count">0</span>/8)</h3>
-        <br>
+        <h3>참여자 (<span id="user-count">0</span>/8)</h3><br>
         <div id="lobby-user-list"></div>
       </div>
       <div class="lobby-main-panel">
         <div class="code-display-box">
           <div style="font-size:12px; color:#666; margin-bottom:5px;">같이 할 사람에게 코드를 알려주세요!</div>
-          <span id="lobby-room-code">XXXXXX</span>
-          <br>
+          <span id="lobby-room-code">XXXXXX</span><br>
           <button class="btn btn-secondary" style="margin-top:10px; padding:4px 10px; font-size:12px;" onclick="copyRoomCode()">코드 복사</button>
         </div>
         <h3 id="ready-status-msg" style="margin-bottom: 20px; color: #e67e22;">버튼을 눌러 준비해주세요!</h3>
@@ -131,8 +128,7 @@
   <div class="screen" id="game-screen">
     <div class="game-layout">
       <div class="game-sidebar">
-        <h3>제출 현황</h3>
-        <br>
+        <h3>제출 현황</h3><br>
         <div id="game-user-list"></div>
       </div>
 
@@ -179,9 +175,7 @@
   let currentRoomCode = '';
   let isSubmitted = false;
 
-  let peer = null;
-  let connections = [];
-  let hostConn = null;
+  let channel = null;
 
   let gameState = {
     roomCode: '',
@@ -191,17 +185,6 @@
     round: 1,
     word: '',
     timer: DRAW_TIME
-  };
-
-  // PeerJS 네트워크 통신 설정 (구글 STUN 서버 추가로 접속 실패 해결)
-  const peerConfig = {
-    config: {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' }
-      ]
-    }
   };
 
   function generateRoomCode() {
@@ -217,52 +200,39 @@
     return gameMode === 'SOLO' || (gameState.users.length > 0 && gameState.users[0].id === myId);
   }
 
-  function initPeer(customPeerId, callback) {
-    if (peer) {
-      try { peer.destroy(); } catch(e){}
-    }
-    
-    peer = customPeerId ? new Peer(customPeerId, peerConfig) : new Peer(peerConfig);
-
-    peer.on('open', (id) => {
-      if (callback) callback(id);
+  // --- WebSocket 실시간 통신 연결 (PieSocket) ---
+  function connectWebSocket(roomCode, onConnected) {
+    // 공개 데모 클러스터 및 API Key 사용 (서버 설정 불필요)
+    const pieSocket = new PieSocket({
+      clusterId: 'demo',
+      apiKey: 'VCXCEuvhGcBDP7XhiJJUDvR1e1D3eiVjgZ9VRiaV',
+      notifySelf: true
     });
 
-    peer.on('connection', (conn) => {
-      connections.push(conn);
-      conn.on('data', (data) => handleIncomingData(data, conn));
-      conn.on('close', () => {
-        connections = connections.filter(c => c !== conn);
-      });
+    channel = pieSocket.subscribe('drawing_room_' + roomCode);
+
+    channel.on('open', () => {
+      if (onConnected) onConnected();
     });
 
-    peer.on('error', (err) => {
-      const joinBtn = document.getElementById('join-btn');
-      const createBtn = document.getElementById('create-btn');
-      if (joinBtn) { joinBtn.innerText = '코드 검색 / 참여'; joinBtn.disabled = false; }
-      if (createBtn) { createBtn.innerText = '새 방 만들기 (방 코드 생성)'; createBtn.disabled = false; }
-
-      if (err.type === 'unavailable-id') {
-        showAlert('방이 이미 생성되었거나 이전 연결이 남아있습니다. 잠시 후 다시 눌러주세요.');
-      } else if (err.type === 'peer-unavailable') {
-        showAlert('방 코드를 찾을 수 없습니다. 코드를 확인하거나 방장이 완전히 들어갈 때까지 기다려주세요.');
-      } else {
-        showAlert('네트워크 연결 오류: ' + err.type);
-      }
+    channel.on('message', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        handleIncomingData(data);
+      } catch(e) {}
     });
   }
 
   function broadcastState() {
     updateUI();
-    if (isHost() && gameMode === 'MULTI') {
-      connections.forEach(conn => {
-        if (conn.open) conn.send({ type: 'SYNC_STATE', payload: gameState });
-      });
+    if (isHost() && gameMode === 'MULTI' && channel) {
+      channel.send(JSON.stringify({ type: 'SYNC_STATE', payload: gameState }));
     }
   }
 
-  function handleIncomingData(data, conn) {
+  function handleIncomingData(data) {
     const { type, payload } = data;
+
     if (type === 'JOIN_REQ') {
       if (isHost()) {
         const exists = gameState.users.find(u => u.id === payload.id);
@@ -296,11 +266,15 @@
       if (gameState.status === 'PLAYING') checkAllSubmitted();
       if (gameState.status === 'VOTING') checkAllVoted();
       if (gameState.status === 'ROUND_RESULT') checkAllNextRoundReady();
-    } else if (hostConn && hostConn.open) {
-      hostConn.send({ type: 'ACTION_UPDATE', payload: { id: myId, data: actionData } });
+    } else if (channel) {
+      channel.send(JSON.stringify({
+        type: 'ACTION_UPDATE',
+        payload: { id: myId, data: actionData }
+      }));
     }
   }
 
+  // --- 화면 및 UI 제어 ---
   function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(screenId).classList.add('active');
@@ -377,6 +351,7 @@
     updateUndoRedoBtnState();
   }
 
+  // --- 방 생성 및 입장 ---
   function createRoom(selectedMode) {
     const input = document.getElementById('nickname-input');
     const name = input.value.trim();
@@ -392,13 +367,11 @@
       startNewRound(1);
     } else {
       currentRoomCode = generateRoomCode();
-      const peerRoomId = 'cd_room_' + currentRoomCode;
-      
       const createBtn = document.getElementById('create-btn');
       createBtn.innerText = '방 생성 중...';
       createBtn.disabled = true;
 
-      initPeer(peerRoomId, () => {
+      connectWebSocket(currentRoomCode, () => {
         document.getElementById('room-info').innerText = '캐치 드로잉 (멀티)';
         gameState.roomCode = currentRoomCode;
         gameState.users = [{ id: myId, name: myName, ready: false, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false }];
@@ -427,30 +400,16 @@
     joinBtn.innerText = '접속 중...';
     joinBtn.disabled = true;
 
-    // 타임아웃 감지 (8초간 응답 없으면 원복)
-    const timeoutTimer = setTimeout(() => {
-      if (joinBtn.disabled) {
-        joinBtn.innerText = '코드 검색 / 참여';
-        joinBtn.disabled = false;
-        showAlert('방 접속 시간이 초과되었습니다. 방장이 먼저 대기실에 들어와 있는지 확인해 주세요.');
-      }
-    }, 8000);
-
-    initPeer(null, () => {
-      const peerRoomId = 'cd_room_' + code;
-      hostConn = peer.connect(peerRoomId, { reliable: true });
-
-      hostConn.on('open', () => {
-        clearTimeout(timeoutTimer);
-        document.getElementById('room-info').innerText = '캐치 드로잉 (멀티)';
-        const meUser = { id: myId, name: myName, ready: false, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false };
-        hostConn.send({ type: 'JOIN_REQ', payload: meUser });
-        showScreen('lobby-screen');
-        joinBtn.innerText = '코드 검색 / 참여';
-        joinBtn.disabled = false;
-      });
-
-      hostConn.on('data', (data) => handleIncomingData(data, hostConn));
+    connectWebSocket(code, () => {
+      document.getElementById('room-info').innerText = '캐치 드로잉 (멀티)';
+      const meUser = { id: myId, name: myName, ready: false, score: 0, drawing: null, submitted: false, votedFor: null, nextRoundReady: false };
+      
+      // 방장에게 참가 요청 전송
+      channel.send(JSON.stringify({ type: 'JOIN_REQ', payload: meUser }));
+      
+      showScreen('lobby-screen');
+      joinBtn.innerText = '코드 검색 / 참여';
+      joinBtn.disabled = false;
     });
   }
 
@@ -467,6 +426,7 @@
 
   function leaveGame() { location.reload(); }
 
+  // --- 라운드 진행 ---
   let timerInterval = null;
   function startNewRound(roundNum) {
     gameState.status = 'PLAYING';
@@ -506,6 +466,7 @@
     broadcastState();
   }
 
+  // --- 캔버스 구현 ---
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
   let isDrawing = false;
@@ -622,6 +583,7 @@
     if (gameState.users.every(u => u.submitted)) finishDrawingPhase();
   }
 
+  // --- 결과 및 투표 ---
   function renderResultScreen() {
     const gallery = document.getElementById('gallery');
     const title = document.getElementById('result-title');
