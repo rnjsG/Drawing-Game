@@ -284,7 +284,7 @@
   const db = firebase.database();
 
   /* ======================================================
-   * Web Audio API (개선된 음향 및 자동재생 차단해제)
+   * Web Audio API (보안 정책 완전 우회 사운드 오실레이터)
    * ====================================================== */
   let audioCtx = null;
   let masterGainNode = null;
@@ -309,11 +309,12 @@
         masterGainNode.connect(audioCtx.destination);
 
         bgmGainNode = audioCtx.createGain();
-        bgmGainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        bgmGainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
         bgmGainNode.connect(masterGainNode);
 
         startBGMSequence();
       }
+      
       if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
@@ -322,7 +323,8 @@
     }
   }
 
-  ['click', 'touchstart', 'mousedown', 'keydown'].forEach(evt => {
+  // 브라우저의 오디오 차단을 푸는 모든 사용자 클릭/터치 이벤트 리스너
+  ['click', 'touchstart', 'mousedown', 'pointerdown', 'keydown'].forEach(evt => {
     window.addEventListener(evt, () => { initAudio(); }, { once: false });
   });
 
@@ -331,7 +333,13 @@
     if (bgmInterval) clearInterval(bgmInterval);
 
     bgmInterval = setInterval(() => {
-      if (isMuted || isBgmOff || !audioCtx || audioCtx.state !== 'running') return;
+      if (isMuted || isBgmOff || !audioCtx) return;
+
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      if (audioCtx.state !== 'running') return;
 
       const osc = audioCtx.createOscillator();
       const noteGain = audioCtx.createGain();
@@ -349,11 +357,13 @@
       osc.stop(audioCtx.currentTime + 0.25);
 
       bgmStep++;
-    }, 250);
+    }, 280);
   }
 
   function playTickSound(isHigh = false) {
-    if (isMuted || !audioCtx || audioCtx.state !== 'running') return;
+    if (isMuted || !audioCtx) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioCtx.state !== 'running') return;
 
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
@@ -361,7 +371,7 @@
     osc.type = 'sine';
     osc.frequency.setValueAtTime(isHigh ? 1200 : 800, audioCtx.currentTime);
 
-    gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
 
     osc.connect(gain);
@@ -376,6 +386,10 @@
     isBgmOff = !isBgmOff;
     const slash = document.getElementById('music-slash');
     slash.style.display = isBgmOff ? 'block' : 'none';
+
+    if (!isBgmOff) {
+      startBGMSequence();
+    }
   }
 
   function toggleMute() {
@@ -1158,7 +1172,6 @@
       item.className = 'gallery-item' + (votedTargetId === u.id ? ' voted' : '');
       
       const img = document.createElement('img');
-      // 그림이 없을 경우 빈 캔버스 이미지 표시
       img.src = u.drawing || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVShortcut';
 
       const nameLabel = document.createElement('div');
