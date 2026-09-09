@@ -177,7 +177,7 @@
           <span id="lobby-room-code">XXXXXX</span><br>
           <button class="btn btn-secondary" style="margin-top:10px; padding:4px 10px; font-size:12px;" onclick="copyRoomCode()">코드 복사</button>
         </div>
-        <h3 id="ready-status-msg" style="margin-bottom: 15px; color: #e67e22;">모든 참여자가 준비를 완료하면 5초 후 게임이 시작됩니다.</h3>
+        <h3 id="ready-status-msg" style="margin-bottom: 15px; color: #e67e22;">모든 참여자가 준비를 완료하면 게임이 시작됩니다.</h3>
         <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
           <button class="btn" id="ready-btn" onclick="toggleReady()">준비 완료</button>
           <button class="btn btn-warning" id="host-force-start-btn" style="display: none;" onclick="forceStartGame()">게임 바로 시작</button>
@@ -409,15 +409,15 @@
   const WORDS_POOL = [
     "강아지", "고양이", "호랑이", "사자", "코끼리", "기린", "펭귄", "캥거루", "판다", "돌고래", 
     "상어", "문어", "오징어", "개구리", "뱀", "독수리", "부엉이", "나비", "꿀벌", "무당벌레", 
-    "다람쥐", "토끼", "돼지", "소", "말", "양", "하마", "악어", "공룡", "카멜레온",
-    "피자", "햄버거", "치킨", "라면", "초밥", "떡볶이", "핫도그", "샌드위치", "도넛", "케이크", 
+    "다람쥐", "토끼", "돼지", "소", "말", "양", "하마", "악어", "공룡", "카멜레온", "비둘기", 
+    "피자", "햄버거", "치킨", "라면", "초밥", "떡볶이", "고추", "핫도그", "샌드위치", "도넛", "케이크", 
     "아이스크림", "초콜릿", "사과", "바나나", "수박", "딸기", "포도", "파인애플", "복숭아", "아보카도", 
-    "식빵", "달걀후라이", "팝콘", "당근", "옥수수", "브로콜리", "고구마", "감자튀김", "만두", "어묵",
+    "식빵", "국수", "달걀후라이", "팝콘", "당근", "옥수수", "브로콜리", "고구마", "감자튀김", "만두", "어묵",
     "스마트폰", "컴퓨터", "헤드폰", "시계", "안경", "선글라스", "우산", "열쇠", "가위", "연필", 
     "책", "거울", "선풍기", "냉장고", "세탁기", "청소기", "TV", "마이크", "카메라", "전등", 
     "침대", "소파", "의자", "책상", "치약", "칫솔", "빗", "지갑", "가방", "모자",
     "자동차", "버스", "택시", "경찰차", "소방차", "구급차", "자전거", "오토바이", "비행기", "헬리콥터", 
-    "열차", "지하철", "배", "잠수함", "우주선", "열기구", "킥보드", "트럭", "굴착기", "세그웨이",
+    "열차", "지하철", "배", "잠수함", "우주선", "장난감", "열기구", "킥보드", "트럭", "굴착기",
     "무지개", "태양", "달", "별", "구름", "번개", "눈사람", "산", "바다", "화산", 
     "에펠탑", "피라미드", "집", "학교", "병원", "풍차", "등대", "성", "다리", "놀이공원",
     "축구공", "농구공", "야구방망이", "테니스채", "볼링핀", "스케이트보드", "스키", "낚싯대", "피아노", "바이올린", 
@@ -1232,9 +1232,10 @@
     userScores.forEach((item, idx) => {
       const tr = document.createElement('tr');
       let rankBadge = `${idx + 1}위`;
-      if (idx === 0) rankBadge = '🥇 1위';
-      else if (idx === 1) rankBadge = '🥈 2위';
-      else if (idx === 2) rankBadge = '🥉 3위';
+  if (idx === userScores.length - 1 && idx > 0) rankBadge = '💩 꼴등';
+  else if (idx === 0) rankBadge = '🥇 1위';
+  else if (idx === 1) rankBadge = '🥈 2위';
+  else if (idx === 2) rankBadge = '🥉 3위';
 
       tr.innerHTML = `
         <td>${rankBadge}</td>
