@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>캐치 드로잉 게임</title>
+  <title>그려그려 게임</title>
   
   <!-- Firebase SDK (CDN) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
@@ -97,7 +97,7 @@
 <div id="game-container">
   <header>
     <div class="header-info">
-      <div id="room-info">캐치 드로잉</div>
+      <div id="room-info">그려그려</div>
       <div id="room-code-badge" class="room-badge" style="display:none;">코드: <span id="header-code">-</span></div>
     </div>
     <div style="display: flex; align-items: center;">
@@ -136,7 +136,7 @@
   <!-- 1. 로그인 스크린 -->
   <div class="screen active" id="login-screen">
     <div class="login-box">
-      <h2 style="margin-bottom: 15px;">캐치 드로잉 시작하기</h2>
+      <h2 style="margin-bottom: 15px;">그려그려 게임 시작하기</h2>
       <input type="text" id="nickname-input" placeholder="닉네임 입력 (최대 8자)" maxlength="8">
       
       <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="createRoom('SOLO')">혼자서 하기 (즉시 시작)</button>
