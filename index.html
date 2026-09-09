@@ -286,35 +286,39 @@
   let bgmInterval = null;
   let bgmStep = 0;
   let masterVolume = 0.3;
-  let lastTickPlayedTime = -1; // 1초당 1회 초침 재생용
+  let lastTickPlayedTime = -1;
 
   function initAudio() {
-    if (!audioCtx) {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      audioCtx = new AudioContext();
+    try {
+      if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        audioCtx = new AudioContext();
 
-      masterGainNode = audioCtx.createGain();
-      masterGainNode.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
-      masterGainNode.connect(audioCtx.destination);
+        masterGainNode = audioCtx.createGain();
+        masterGainNode.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
+        masterGainNode.connect(audioCtx.destination);
 
-      bgmGainNode = audioCtx.createGain();
-      bgmGainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
-      bgmGainNode.connect(masterGainNode);
+        bgmGainNode = audioCtx.createGain();
+        bgmGainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        bgmGainNode.connect(masterGainNode);
 
-      startBGMSequence();
-    }
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
+        startBGMSequence();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    } catch (e) {
+      console.warn("Web Audio API Initializing error:", e);
     }
   }
 
-  // 밝고 경쾌한 루프 BGM (Web Audio 합성음)
   function startBGMSequence() {
-    const notes = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63, 293.66, 349.23, 440.00, 349.23, 329.63, 392.00]; // C E G C G E D F A F E G
+    const notes = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63, 293.66, 349.23, 440.00, 349.23, 329.63, 392.00];
     if (bgmInterval) clearInterval(bgmInterval);
 
     bgmInterval = setInterval(() => {
-      if (isMuted || !audioCtx) return;
+      if (isMuted || !audioCtx || audioCtx.state !== 'running') return;
 
       const osc = audioCtx.createOscillator();
       const noteGain = audioCtx.createGain();
@@ -335,10 +339,8 @@
     }, 250);
   }
 
-  // 5초 카운트다운 긴장감 초침 소리 (Tick-Tock)
   function playTickSound(isHigh = false) {
-    if (isMuted || !audioCtx) return;
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (isMuted || !audioCtx || audioCtx.state !== 'running') return;
 
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
@@ -361,22 +363,21 @@
     const btn = document.getElementById('bgm-toggle-btn');
     if (isMuted) {
       btn.innerText = '🔇';
-      if (masterGainNode) masterGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+      if (masterGainNode && audioCtx) masterGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
     } else {
       btn.innerText = '🎵';
-      if (masterGainNode) masterGainNode.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
       initAudio();
+      if (masterGainNode && audioCtx) masterGainNode.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
     }
   }
 
   function changeVolume(val) {
     masterVolume = parseFloat(val);
-    if (masterGainNode && !isMuted) {
+    if (masterGainNode && audioCtx && !isMuted) {
       masterGainNode.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
     }
   }
 
-  // 클릭 시 오디오 엔진 자동 활성화
   window.addEventListener('click', () => { initAudio(); }, { once: true });
   window.addEventListener('touchstart', () => { initAudio(); }, { once: true });
 
@@ -502,7 +503,7 @@
       const badge = u.ready ? `<span class="badge badge-ready">준비 완료</span>` : `<span class="badge badge-wait">대기 중</span>`;
       
       let kickBtnHtml = '';
-      if (isHost && u.id !== myId) {
+      if (isHost && u.id !== myId && gameMode === 'MULTI') {
         kickBtnHtml = `<button class="btn-kick" onclick="kickUser('${u.id}', '${u.name}')">강퇴</button>`;
       }
 
@@ -518,10 +519,10 @@
     }
 
     const hostStartBtn = document.getElementById('host-force-start-btn');
-    hostStartBtn.style.display = (isHost && gameState.status === 'LOBBY') ? 'inline-block' : 'none';
+    hostStartBtn.style.display = (isHost && gameState.status === 'LOBBY' && gameMode === 'MULTI') ? 'inline-block' : 'none';
 
     const hostNextBtn = document.getElementById('host-next-round-btn');
-    hostNextBtn.style.display = (isHost && gameState.status === 'ROUND_RESULT') ? 'inline-block' : 'none';
+    hostNextBtn.style.display = (isHost && gameState.status === 'ROUND_RESULT' && gameMode === 'MULTI') ? 'inline-block' : 'none';
     if (isHost && gameState.status === 'ROUND_RESULT') {
       hostNextBtn.innerText = gameState.round >= TOTAL_ROUNDS ? "최종 순위 바로 보기 (방장전용)" : "다음 라운드 바로 시작 (방장전용)";
     }
@@ -567,7 +568,6 @@
     if (gameState.status === 'PLAYING' && gameState.timer <= 5 && gameState.timer > 0) {
       timerElem.classList.add('timer-warning');
       
-      // 초침 소리 재생 (매 초 마다 1번씩)
       if (lastTickPlayedTime !== gameState.timer) {
         lastTickPlayedTime = gameState.timer;
         playTickSound(gameState.timer === 1);
@@ -663,13 +663,25 @@
             clearInterval(timerInterval);
             timerInterval = null;
 
-            db.ref('rooms/' + currentRoomCode).update({
-              status: 'ROUND_RESULT',
-              timer: 0,
-              startCountdown: 0
-            });
+            if (gameMode === 'MULTI') {
+              db.ref('rooms/' + currentRoomCode).update({
+                status: 'ROUND_RESULT',
+                timer: 0,
+                startCountdown: 0
+              });
+            } else {
+              gameState.status = 'ROUND_RESULT';
+              gameState.timer = 0;
+              gameState.startCountdown = 0;
+              updateUI();
+            }
           } else {
-            db.ref('rooms/' + currentRoomCode).update({ timer: newTime });
+            if (gameMode === 'MULTI') {
+              db.ref('rooms/' + currentRoomCode).update({ timer: newTime });
+            } else {
+              gameState.timer = newTime;
+              updateUI();
+            }
           }
         }, 1000);
       }
@@ -718,12 +730,23 @@
     cancelCountdown();
     isTransitioning = true;
     let count = seconds;
-    db.ref('rooms/' + currentRoomCode).update({ startCountdown: count });
+    
+    if (gameMode === 'MULTI') {
+      db.ref('rooms/' + currentRoomCode).update({ startCountdown: count });
+    } else {
+      gameState.startCountdown = count;
+      updateUI();
+    }
 
     countdownTimerInterval = setInterval(() => {
       count--;
       if (count > 0) {
-        db.ref('rooms/' + currentRoomCode).update({ startCountdown: count });
+        if (gameMode === 'MULTI') {
+          db.ref('rooms/' + currentRoomCode).update({ startCountdown: count });
+        } else {
+          gameState.startCountdown = count;
+          updateUI();
+        }
       } else {
         cancelCountdown();
         isForcedStart = false;
@@ -797,19 +820,30 @@
       };
     });
 
-    db.ref('rooms/' + currentRoomCode).update({
-      status: 'PLAYING',
-      startCountdown: 0,
-      round: roundNum,
-      word: nextWord,
-      usedWords: usedWords,
-      timer: DRAW_TIME,
-      users: updatedUsers
-    }).then(() => {
-      setTimeout(() => {
-        isTransitioning = false;
-      }, 1500);
-    });
+    if (gameMode === 'MULTI') {
+      db.ref('rooms/' + currentRoomCode).update({
+        status: 'PLAYING',
+        startCountdown: 0,
+        round: roundNum,
+        word: nextWord,
+        usedWords: usedWords,
+        timer: DRAW_TIME,
+        users: updatedUsers
+      }).then(() => {
+        setTimeout(() => { isTransitioning = false; }, 1500);
+      });
+    } else {
+      gameState.status = 'PLAYING';
+      gameState.startCountdown = 0;
+      gameState.round = roundNum;
+      gameState.word = nextWord;
+      gameState.usedWords = usedWords;
+      gameState.timer = DRAW_TIME;
+      gameState.users = updatedUsers;
+      updateUI();
+      handleHostLogic();
+      setTimeout(() => { isTransitioning = false; }, 1500);
+    }
   }
 
   function returnToLobby() {
@@ -857,8 +891,13 @@
       gameState = {
         roomCode: 'SOLO',
         hostId: myId,
-        users: { [myId]: { id: myId, name: myName, ready: true, votes: 0, roundHistory: {}, drawing: '', submitted: false } },
-        status: 'PLAYING', round: 1, word: initialWord, usedWords: [initialWord], timer: DRAW_TIME
+        users: { [myId]: { id: myId, name: myName, ready: false, votes: 0, roundHistory: {}, drawing: '', submitted: false } },
+        status: 'LOBBY',
+        startCountdown: 0,
+        round: 1,
+        word: initialWord,
+        usedWords: [initialWord],
+        timer: DRAW_TIME
       };
       updateUI();
     } else {
@@ -912,27 +951,21 @@
   }
 
   function toggleReady() {
-    if (gameMode === 'SOLO') return;
+    if (gameMode === 'SOLO') {
+      gameState.users[myId].ready = !gameState.users[myId].ready;
+      updateUI();
+      handleHostLogic();
+      return;
+    }
     const currentReady = gameState.users[myId]?.ready || false;
     db.ref('rooms/' + currentRoomCode + '/users/' + myId + '/ready').set(!currentReady);
   }
 
   function toggleReadyNextRound() {
     if (gameMode === 'SOLO') {
-      saveRoundVotesToHistory();
-      gameState.round++;
-      if (gameState.round > TOTAL_ROUNDS) {
-        gameState.status = 'FINAL_RESULT';
-      } else {
-        gameState.status = 'PLAYING';
-        gameState.timer = DRAW_TIME;
-        gameState.word = getUniqueWord(gameState.usedWords);
-        gameState.usedWords.push(gameState.word);
-        gameState.users[myId].votes = 0;
-        gameState.users[myId].submitted = false;
-        resetCanvasState();
-      }
+      gameState.users[myId].readyNext = !gameState.users[myId].readyNext;
       updateUI();
+      handleHostLogic();
       return;
     }
 
@@ -1075,6 +1108,8 @@
       if (gameState.users[myId]) {
         gameState.users[myId].submitted = true;
         gameState.users[myId].drawing = dataUrl;
+        updateUI();
+        handleHostLogic();
       }
     }
   }
@@ -1090,7 +1125,8 @@
       item.className = 'gallery-item' + (votedTargetId === u.id ? ' voted' : '');
       
       const img = document.createElement('img');
-      img.src = u.drawing || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+      // 그림이 비어있으면 기본 캔버스 단색(흰색) 이미지를 할당
+      img.src = u.drawing || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVShortcut';
 
       const nameLabel = document.createElement('div');
       nameLabel.style.fontWeight = 'bold';
