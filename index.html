@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title> 그려그려 게임</title>
+  <title>캐치 드로잉 게임</title>
   
   <!-- Firebase SDK (CDN) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
@@ -120,7 +120,7 @@
         <button id="mute-toggle-btn" class="audio-btn" onclick="toggleMute()" title="음소거 켜기/끄기">
           <span id="mute-icon">🔊</span>
         </button>
-        <input type="range" id="volume-slider" class="volume-slider" min="0" max="1" step="0.05" value="0.2" oninput="changeVolume(this.value)">
+        <input type="range" id="volume-slider" class="volume-slider" min="0" max="1" step="0.05" value="0.3" oninput="changeVolume(this.value)">
       </div>
       <button class="menu-btn" onclick="toggleMenu(true)">☰</button>
     </div>
@@ -284,14 +284,13 @@
   const db = firebase.database();
 
   /* ======================================================
-   * 웹 오디오 API 기반 자작 BGM 엔진 (100% 자발적 재생 보장)
+   * 웹 오디오 API 기반 BGM 엔진 (오디오 차단 자동 해제 보장)
    * ====================================================== */
   let audioCtx = null;
   let bgmTimer = null;
   let isBgmOff = false;
   let isMuted = false;
-  let currentVolume = 0.2;
-  let audioStarted = false;
+  let currentVolume = 0.3;
 
   const bgmMelody = [
     261.63, 329.63, 392.00, 523.25, 392.00, 329.63,
@@ -309,8 +308,7 @@
     if (audioCtx.state === 'suspended') {
       audioCtx.resume();
     }
-    if (!audioStarted && !isBgmOff) {
-      audioStarted = true;
+    if (!bgmTimer && !isBgmOff) {
       startBGMSequence();
     }
   }
@@ -347,16 +345,21 @@
     }, 250);
   }
 
-  // 화면의 어느 곳이든 클릭/터치 시 오디오 엔진 활성화
-  ['click', 'touchstart', 'mousedown', 'keydown'].forEach(evt => {
-    window.addEventListener(evt, () => { initAudioEngine(); }, { once: false });
-  });
+  // 화면 터치/클릭 시 오디오 해제
+  window.addEventListener('click', () => { initAudioEngine(); }, { once: false });
+  window.addEventListener('touchstart', () => { initAudioEngine(); }, { once: false });
 
   function toggleBGM() {
+    initAudioEngine();
     isBgmOff = !isBgmOff;
     document.getElementById('music-slash').style.display = isBgmOff ? 'block' : 'none';
-    if (!isBgmOff) {
-      initAudioEngine();
+    if (isBgmOff) {
+      if (bgmTimer) {
+        clearInterval(bgmTimer);
+        bgmTimer = null;
+      }
+    } else {
+      startBGMSequence();
     }
   }
 
@@ -562,7 +565,7 @@
       timerElem.classList.remove('timer-warning');
     }
 
-    // ★ 미제출자의 그림 자동 강제 저장 로직
+    // 미제출자의 그림 자동 강제 저장 로직
     if (gameState.status === 'PLAYING' && gameState.timer <= 0 && !hasAutoSubmitted) {
       hasAutoSubmitted = true;
       forceSubmitDrawing();
@@ -607,7 +610,6 @@
         resetCanvasState();
       }
     } else if (gameState.status === 'ROUND_RESULT') {
-      // 결과 화면 진입 전, 혹시 제출 안 된 그림이 있다면 내 그림 강제 제출
       if (!myUser?.submitted || !myUser?.drawing) {
         forceSubmitDrawing();
       }
@@ -1097,7 +1099,6 @@
     }
   }
 
-  // ★ 자동 그림 제출/저장 함수 (미제출 그림도 무조건 보장)
   function forceSubmitDrawing() {
     const dataUrl = canvas.toDataURL('image/png');
     if (gameMode === 'MULTI') {
@@ -1126,7 +1127,6 @@
       item.className = 'gallery-item' + (votedTargetId === u.id ? ' voted' : '');
       
       const img = document.createElement('img');
-      // 그림이 제출되었거나 추출된 데이터가 있는 경우 출력
       img.src = u.drawing || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVShortcut';
 
       const nameLabel = document.createElement('div');
