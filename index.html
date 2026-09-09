@@ -14,10 +14,16 @@
     html, body { width: 100%; height: 100%; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; overflow: hidden; }
     
     #game-container { width: 95%; max-width: 900px; height: 95vh; max-height: 850px; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); position: relative; display: flex; flex-direction: column; overflow: hidden; }
-    header { background: #4a90e2; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+    header { background: #4a90e2; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
     .header-info { display: flex; align-items: center; gap: 10px; }
     .room-badge { background: rgba(255, 255, 255, 0.2); padding: 4px 8px; border-radius: 4px; font-size: 14px; font-weight: bold; }
-    .menu-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
+    
+    /* 오디오 컨트롤러 스타일 */
+    .audio-controls { display: flex; align-items: center; gap: 8px; background: rgba(0, 0, 0, 0.15); padding: 4px 10px; border-radius: 20px; font-size: 12px; }
+    .audio-btn { background: none; border: none; color: white; font-size: 16px; cursor: pointer; padding: 0 2px; }
+    .volume-slider { width: 60px; accent-color: #f1c40f; cursor: pointer; }
+
+    .menu-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; margin-left: 10px; }
     
     .modal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
     .modal-overlay.active { opacity: 1; pointer-events: auto; }
@@ -103,7 +109,14 @@
       <div id="room-info">캐치 드로잉</div>
       <div id="room-code-badge" class="room-badge" style="display:none;">코드: <span id="header-code">-</span></div>
     </div>
-    <button class="menu-btn" onclick="toggleMenu(true)">☰</button>
+    <div style="display: flex; align-items: center;">
+      <!-- 배경음악/효과음 오디오 컨트롤러 -->
+      <div class="audio-controls">
+        <button id="bgm-toggle-btn" class="audio-btn" onclick="toggleBGM()">🎵</button>
+        <input type="range" id="volume-slider" class="volume-slider" min="0" max="1" step="0.05" value="0.3" oninput="changeVolume(this.value)">
+      </div>
+      <button class="menu-btn" onclick="toggleMenu(true)">☰</button>
+    </div>
   </header>
 
   <div id="start-countdown-overlay">
@@ -263,6 +276,114 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
+  /* ======================================================
+   * Web Audio API (배경음악 & 5초 전 초침 효과음)
+   * ====================================================== */
+  let audioCtx = null;
+  let masterGainNode = null;
+  let bgmGainNode = null;
+  let isMuted = false;
+  let bgmInterval = null;
+  let bgmStep = 0;
+  let masterVolume = 0.3;
+  let lastTickPlayedTime = -1; // 1초당 1회 초침 재생용
+
+  function initAudio() {
+    if (!audioCtx) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AudioContext();
+
+      masterGainNode = audioCtx.createGain();
+      masterGainNode.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
+      masterGainNode.connect(audioCtx.destination);
+
+      bgmGainNode = audioCtx.createGain();
+      bgmGainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+      bgmGainNode.connect(masterGainNode);
+
+      startBGMSequence();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+  }
+
+  // 밝고 경쾌한 루프 BGM (Web Audio 합성음)
+  function startBGMSequence() {
+    const notes = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63, 293.66, 349.23, 440.00, 349.23, 329.63, 392.00]; // C E G C G E D F A F E G
+    if (bgmInterval) clearInterval(bgmInterval);
+
+    bgmInterval = setInterval(() => {
+      if (isMuted || !audioCtx) return;
+
+      const osc = audioCtx.createOscillator();
+      const noteGain = audioCtx.createGain();
+      
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(notes[bgmStep % notes.length], audioCtx.currentTime);
+      
+      noteGain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      noteGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
+
+      osc.connect(noteGain);
+      noteGain.connect(bgmGainNode);
+
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.25);
+
+      bgmStep++;
+    }, 250);
+  }
+
+  // 5초 카운트다운 긴장감 초침 소리 (Tick-Tock)
+  function playTickSound(isHigh = false) {
+    if (isMuted || !audioCtx) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(isHigh ? 1200 : 800, audioCtx.currentTime);
+
+    gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+
+    osc.connect(gain);
+    gain.connect(masterGainNode);
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.06);
+  }
+
+  function toggleBGM() {
+    isMuted = !isMuted;
+    const btn = document.getElementById('bgm-toggle-btn');
+    if (isMuted) {
+      btn.innerText = '🔇';
+      if (masterGainNode) masterGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+    } else {
+      btn.innerText = '🎵';
+      if (masterGainNode) masterGainNode.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
+      initAudio();
+    }
+  }
+
+  function changeVolume(val) {
+    masterVolume = parseFloat(val);
+    if (masterGainNode && !isMuted) {
+      masterGainNode.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
+    }
+  }
+
+  // 클릭 시 오디오 엔진 자동 활성화
+  window.addEventListener('click', () => { initAudio(); }, { once: true });
+  window.addEventListener('touchstart', () => { initAudio(); }, { once: true });
+
+
+  /* ======================================================
+   * 게임 핵심 로직
+   * ====================================================== */
   const TOTAL_ROUNDS = 5;
   const DRAW_TIME = 30;
 
@@ -439,10 +560,18 @@
       });
     }
 
+    // 타이머 및 5초 전 초침 sound 효과
     const timerElem = document.getElementById('timer');
     timerElem.innerText = gameState.timer;
-    if (gameState.timer <= 5 && gameState.status === 'PLAYING') {
+
+    if (gameState.status === 'PLAYING' && gameState.timer <= 5 && gameState.timer > 0) {
       timerElem.classList.add('timer-warning');
+      
+      // 초침 소리 재생 (매 초 마다 1번씩)
+      if (lastTickPlayedTime !== gameState.timer) {
+        lastTickPlayedTime = gameState.timer;
+        playTickSound(gameState.timer === 1);
+      }
     } else {
       timerElem.classList.remove('timer-warning');
     }
@@ -512,7 +641,6 @@
       gameState = data;
       updateUI();
 
-      // 오직 방장(Host) 컴퓨터에서만 게임 진행 제어
       if (isHost && gameMode === 'MULTI') {
         handleHostLogic();
       }
@@ -522,9 +650,8 @@
   function handleHostLogic() {
     const usersArr = Object.values(gameState.users || {});
     
-    // 게임 진행 중 타이머 구동
     if (gameState.status === 'PLAYING') {
-      cancelCountdown(); // 플레이 중일 때는 카운트다운 완전 차단
+      cancelCountdown();
 
       if (!timerInterval) {
         timerInterval = setInterval(() => {
@@ -556,7 +683,6 @@
 
     if (isForcedStart || isTransitioning) return;
 
-    // 1. 대기실 전원 준비 완료
     if (gameState.status === 'LOBBY' && usersArr.length > 0 && usersArr.every(u => u.ready)) {
       if (gameState.startCountdown === 0 && !countdownTimerInterval) {
         startCountdownTimer(5, () => startNewRound(1));
@@ -565,7 +691,6 @@
       cancelCountdown();
     }
 
-    // 2. 라운드 결과 화면에서 전원 준비 완료 시 다음 라운드 진행
     if (gameState.status === 'ROUND_RESULT' && usersArr.length > 0 && usersArr.every(u => u.readyNext)) {
       if (gameState.startCountdown === 0 && !countdownTimerInterval) {
         startCountdownTimer(3, () => proceedNextRoundStep());
@@ -652,11 +777,11 @@
     }
 
     hasAutoSubmitted = false;
+    lastTickPlayedTime = -1;
     const usedWords = gameState.usedWords || [];
     const nextWord = getUniqueWord(usedWords);
     usedWords.push(nextWord);
 
-    // 라운드 시작 시 모든 유저의 준비 상태/제출 정보 완전 리셋
     const updatedUsers = {};
     Object.keys(gameState.users || {}).forEach(uid => {
       const u = gameState.users[uid];
@@ -717,6 +842,7 @@
   }
 
   function createRoom(selectedMode) {
+    initAudio();
     const input = document.getElementById('nickname-input');
     const name = input.value.trim();
     if (!name) return showAlert('닉네임을 입력해주세요.');
@@ -758,6 +884,7 @@
   }
 
   function joinByCode() {
+    initAudio();
     const nameInput = document.getElementById('nickname-input');
     const codeInput = document.getElementById('join-code-input');
     const name = nameInput.value.trim();
