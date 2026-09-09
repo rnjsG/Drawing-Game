@@ -284,7 +284,7 @@
   const db = firebase.database();
 
   /* ======================================================
-   * 웹 오디오 API 기반 BGM 엔진 (오디오 차단 자동 해제 보장)
+   * Web Audio API 합성음 BGM 엔진 (Autoplay 차단 완벽 해제)
    * ====================================================== */
   let audioCtx = null;
   let bgmTimer = null;
@@ -292,6 +292,7 @@
   let isMuted = false;
   let currentVolume = 0.3;
 
+  // C4 ~ C5 멜로디 파형 데이터 (헤르츠)
   const bgmMelody = [
     261.63, 329.63, 392.00, 523.25, 392.00, 329.63,
     293.66, 349.23, 440.00, 587.33, 440.00, 349.23,
@@ -300,27 +301,30 @@
   ];
   let melodyIdx = 0;
 
-  function initAudioEngine() {
+  // 브라우저 차단 상태 해제 핵심 함수
+  function unlockAudioContext() {
     if (!audioCtx) {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      audioCtx = new AudioContext();
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AudioContextClass();
     }
+    
     if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
-    if (!bgmTimer && !isBgmOff) {
-      startBGMSequence();
+      audioCtx.resume().then(() => {
+        if (!bgmTimer && !isBgmOff) startBGMSequence();
+      });
+    } else {
+      if (!bgmTimer && !isBgmOff) startBGMSequence();
     }
   }
 
   function playBGMNote() {
-    if (!audioCtx || isBgmOff || isMuted) return;
+    if (!audioCtx || isBgmOff || isMuted || audioCtx.state !== 'running') return;
 
     try {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
 
-      osc.type = 'triangle';
+      osc.type = 'triangle'; // 부드러운 삼각파 사용
       osc.frequency.setValueAtTime(bgmMelody[melodyIdx], audioCtx.currentTime);
 
       gain.gain.setValueAtTime(currentVolume, audioCtx.currentTime);
@@ -334,7 +338,7 @@
 
       melodyIdx = (melodyIdx + 1) % bgmMelody.length;
     } catch(e) {
-      console.log(e);
+      console.error(e);
     }
   }
 
@@ -345,12 +349,12 @@
     }, 250);
   }
 
-  // 화면 터치/클릭 시 오디오 해제
-  window.addEventListener('click', () => { initAudioEngine(); }, { once: false });
-  window.addEventListener('touchstart', () => { initAudioEngine(); }, { once: false });
+  // 화면의 모든 클릭/터치 시 브라우저 오디오 권한 확보
+  window.addEventListener('pointerdown', unlockAudioContext, { once: false });
+  window.addEventListener('keydown', unlockAudioContext, { once: false });
 
   function toggleBGM() {
-    initAudioEngine();
+    unlockAudioContext();
     isBgmOff = !isBgmOff;
     document.getElementById('music-slash').style.display = isBgmOff ? 'block' : 'none';
     if (isBgmOff) {
@@ -565,7 +569,7 @@
       timerElem.classList.remove('timer-warning');
     }
 
-    // 미제출자의 그림 자동 강제 저장 로직
+    // 미제출자의 그림 자동 강제 저장
     if (gameState.status === 'PLAYING' && gameState.timer <= 0 && !hasAutoSubmitted) {
       hasAutoSubmitted = true;
       forceSubmitDrawing();
@@ -878,7 +882,7 @@
   }
 
   function createRoom(selectedMode) {
-    initAudioEngine();
+    unlockAudioContext();
     const input = document.getElementById('nickname-input');
     const name = input.value.trim();
     if (!name) return showAlert('닉네임을 입력해주세요.');
@@ -925,7 +929,7 @@
   }
 
   function joinByCode() {
-    initAudioEngine();
+    unlockAudioContext();
     const nameInput = document.getElementById('nickname-input');
     const codeInput = document.getElementById('join-code-input');
     const name = nameInput.value.trim();
