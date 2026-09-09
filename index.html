@@ -18,7 +18,7 @@
     .header-info { display: flex; align-items: center; gap: 10px; }
     .room-badge { background: rgba(255, 255, 255, 0.2); padding: 4px 8px; border-radius: 4px; font-size: 14px; font-weight: bold; }
     
-    /* 오디오 컨트롤러 스타일 */
+    /* 오디오 컨트롤러 */
     .audio-controls { display: flex; align-items: center; gap: 8px; background: rgba(0, 0, 0, 0.15); padding: 4px 10px; border-radius: 20px; font-size: 12px; }
     .audio-btn { background: none; border: none; color: white; font-size: 16px; cursor: pointer; padding: 0 2px; display: flex; align-items: center; justify-content: center; }
     .volume-slider { width: 60px; accent-color: #f1c40f; cursor: pointer; }
@@ -110,20 +110,16 @@
       <div id="room-code-badge" class="room-badge" style="display:none;">코드: <span id="header-code">-</span></div>
     </div>
     <div style="display: flex; align-items: center;">
-      <!-- 배경음악/효과음 오디오 컨트롤러 -->
       <div class="audio-controls">
-        <!-- 1. BGM 토글 버튼 -->
         <button id="bgm-toggle-btn" class="audio-btn" onclick="toggleBGM()" title="배경음악 켜기/끄기">
           <svg id="music-svg" width="20" height="20" viewBox="0 0 24 24" style="vertical-align: middle;">
             <path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
             <line id="music-slash" x1="3" y1="3" x2="21" y2="21" stroke="#e74c3c" stroke-width="3" stroke-linecap="round" style="display: none;"/>
           </svg>
         </button>
-        <!-- 2. 전체 음소거 버튼 -->
         <button id="mute-toggle-btn" class="audio-btn" onclick="toggleMute()" title="음소거 켜기/끄기">
           <span id="mute-icon">🔊</span>
         </button>
-        <!-- 3. 볼륨 조절 슬라이더 -->
         <input type="range" id="volume-slider" class="volume-slider" min="0" max="1" step="0.05" value="0.3" oninput="changeVolume(this.value)">
       </div>
       <button class="menu-btn" onclick="toggleMenu(true)">☰</button>
@@ -288,7 +284,7 @@
   const db = firebase.database();
 
   /* ======================================================
-   * Web Audio API (개선된 오디오 엔진 및 컨트롤러)
+   * Web Audio API (개선된 음향 및 자동재생 차단해제)
    * ====================================================== */
   let audioCtx = null;
   let masterGainNode = null;
@@ -322,12 +318,11 @@
         audioCtx.resume();
       }
     } catch (e) {
-      console.warn("Web Audio API Initializing error:", e);
+      console.warn("Audio Context init error:", e);
     }
   }
 
-  // 화면 내 클릭/터치/키보드 감지 시 브라우저 오디오 차단 자동 해제
-  ['click', 'touchstart', 'keydown'].forEach(evt => {
+  ['click', 'touchstart', 'mousedown', 'keydown'].forEach(evt => {
     window.addEventListener(evt, () => { initAudio(); }, { once: false });
   });
 
@@ -405,7 +400,7 @@
   }
 
   /* ======================================================
-   * 게임 핵심 로직 (솔로/멀티 세션 버그 수정 적용)
+   * 게임 핵심 로직 (그림 제출 및 타이머 자동저장 강화)
    * ====================================================== */
   const TOTAL_ROUNDS = 5;
   const DRAW_TIME = 30;
@@ -601,7 +596,7 @@
       timerElem.classList.remove('timer-warning');
     }
 
-    // 타임아웃 처리
+    // 남은 시간이 0 이하일 때 그림 강제 자동 제출
     if (gameState.status === 'PLAYING' && gameState.timer <= 0 && !hasAutoSubmitted) {
       hasAutoSubmitted = true;
       forceSubmitDrawing();
@@ -685,6 +680,9 @@
           if (newTime <= 0 || allSubmitted) {
             clearInterval(timerInterval);
             timerInterval = null;
+
+            // 게임 종료 전 현 참여자의 제출 상태 보장
+            forceSubmitDrawing();
 
             if (gameMode === 'MULTI') {
               db.ref('rooms/' + currentRoomCode).update({
@@ -1131,6 +1129,7 @@
     }
   }
 
+  // Canvas 데이터 연동 강제 수동/자동 제출
   function forceSubmitDrawing() {
     const dataUrl = canvas.toDataURL('image/png');
     if (gameMode === 'MULTI') {
@@ -1159,6 +1158,7 @@
       item.className = 'gallery-item' + (votedTargetId === u.id ? ' voted' : '');
       
       const img = document.createElement('img');
+      // 그림이 없을 경우 빈 캔버스 이미지 표시
       img.src = u.drawing || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVShortcut';
 
       const nameLabel = document.createElement('div');
