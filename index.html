@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>캐치 드로잉 게임</title>
+  <title> 그려그려 게임</title>
   
   <!-- Firebase SDK (CDN) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
@@ -120,7 +120,7 @@
         <button id="mute-toggle-btn" class="audio-btn" onclick="toggleMute()" title="음소거 켜기/끄기">
           <span id="mute-icon">🔊</span>
         </button>
-        <input type="range" id="volume-slider" class="volume-slider" min="0" max="1" step="0.05" value="0.3" oninput="changeVolume(this.value)">
+        <input type="range" id="volume-slider" class="volume-slider" min="0" max="1" step="0.05" value="0.2" oninput="changeVolume(this.value)">
       </div>
       <button class="menu-btn" onclick="toggleMenu(true)">☰</button>
     </div>
@@ -284,137 +284,93 @@
   const db = firebase.database();
 
   /* ======================================================
-   * Web Audio API (보안 정책 완전 우회 사운드 오실레이터)
+   * 웹 오디오 API 기반 자작 BGM 엔진 (100% 자발적 재생 보장)
    * ====================================================== */
   let audioCtx = null;
-  let masterGainNode = null;
-  let bgmGainNode = null;
-  
+  let bgmTimer = null;
   let isBgmOff = false;
   let isMuted = false;
-  let bgmInterval = null;
-  let bgmStep = 0;
-  let masterVolume = 0.3;
-  let lastTickPlayedTime = -1;
+  let currentVolume = 0.2;
+  let audioStarted = false;
 
-  function initAudio() {
-    try {
-      if (!audioCtx) {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContext) return;
-        audioCtx = new AudioContext();
+  const bgmMelody = [
+    261.63, 329.63, 392.00, 523.25, 392.00, 329.63,
+    293.66, 349.23, 440.00, 587.33, 440.00, 349.23,
+    329.63, 392.00, 523.25, 659.25, 523.25, 392.00,
+    392.00, 440.00, 392.00, 349.23, 329.63, 293.66
+  ];
+  let melodyIdx = 0;
 
-        masterGainNode = audioCtx.createGain();
-        masterGainNode.gain.setValueAtTime(isMuted ? 0 : masterVolume, audioCtx.currentTime);
-        masterGainNode.connect(audioCtx.destination);
-
-        bgmGainNode = audioCtx.createGain();
-        bgmGainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
-        bgmGainNode.connect(masterGainNode);
-
-        startBGMSequence();
-      }
-      
-      if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-    } catch (e) {
-      console.warn("Audio Context init error:", e);
+  function initAudioEngine() {
+    if (!audioCtx) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AudioContext();
     }
-  }
-
-  // 브라우저의 오디오 차단을 푸는 모든 사용자 클릭/터치 이벤트 리스너
-  ['click', 'touchstart', 'mousedown', 'pointerdown', 'keydown'].forEach(evt => {
-    window.addEventListener(evt, () => { initAudio(); }, { once: false });
-  });
-
-  function startBGMSequence() {
-    const notes = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63, 293.66, 349.23, 440.00, 349.23, 329.63, 392.00];
-    if (bgmInterval) clearInterval(bgmInterval);
-
-    bgmInterval = setInterval(() => {
-      if (isMuted || isBgmOff || !audioCtx) return;
-
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-
-      if (audioCtx.state !== 'running') return;
-
-      const osc = audioCtx.createOscillator();
-      const noteGain = audioCtx.createGain();
-      
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(notes[bgmStep % notes.length], audioCtx.currentTime);
-      
-      noteGain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-      noteGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
-
-      osc.connect(noteGain);
-      noteGain.connect(bgmGainNode);
-
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.25);
-
-      bgmStep++;
-    }, 280);
-  }
-
-  function playTickSound(isHigh = false) {
-    if (isMuted || !audioCtx) return;
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    if (audioCtx.state !== 'running') return;
-
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(isHigh ? 1200 : 800, audioCtx.currentTime);
-
-    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
-
-    osc.connect(gain);
-    gain.connect(masterGainNode);
-
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.06);
-  }
-
-  function toggleBGM() {
-    initAudio();
-    isBgmOff = !isBgmOff;
-    const slash = document.getElementById('music-slash');
-    slash.style.display = isBgmOff ? 'block' : 'none';
-
-    if (!isBgmOff) {
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    if (!audioStarted && !isBgmOff) {
+      audioStarted = true;
       startBGMSequence();
     }
   }
 
-  function toggleMute() {
-    initAudio();
-    isMuted = !isMuted;
-    const icon = document.getElementById('mute-icon');
+  function playBGMNote() {
+    if (!audioCtx || isBgmOff || isMuted) return;
 
-    if (isMuted) {
-      icon.innerText = '🔇';
-      if (masterGainNode && audioCtx) masterGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-    } else {
-      icon.innerText = '🔊';
-      if (masterGainNode && audioCtx) masterGainNode.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
+    try {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(bgmMelody[melodyIdx], audioCtx.currentTime);
+
+      gain.gain.setValueAtTime(currentVolume, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.22);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.23);
+
+      melodyIdx = (melodyIdx + 1) % bgmMelody.length;
+    } catch(e) {
+      console.log(e);
     }
+  }
+
+  function startBGMSequence() {
+    if (bgmTimer) clearInterval(bgmTimer);
+    bgmTimer = setInterval(() => {
+      playBGMNote();
+    }, 250);
+  }
+
+  // 화면의 어느 곳이든 클릭/터치 시 오디오 엔진 활성화
+  ['click', 'touchstart', 'mousedown', 'keydown'].forEach(evt => {
+    window.addEventListener(evt, () => { initAudioEngine(); }, { once: false });
+  });
+
+  function toggleBGM() {
+    isBgmOff = !isBgmOff;
+    document.getElementById('music-slash').style.display = isBgmOff ? 'block' : 'none';
+    if (!isBgmOff) {
+      initAudioEngine();
+    }
+  }
+
+  function toggleMute() {
+    isMuted = !isMuted;
+    document.getElementById('mute-icon').innerText = isMuted ? '🔇' : '🔊';
   }
 
   function changeVolume(val) {
-    masterVolume = parseFloat(val);
-    if (masterGainNode && audioCtx && !isMuted) {
-      masterGainNode.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
-    }
+    currentVolume = parseFloat(val);
   }
 
   /* ======================================================
-   * 게임 핵심 로직 (그림 제출 및 타이머 자동저장 강화)
+   * 게임 핵심 로직 (그림 제출 및 타이머 연동)
    * ====================================================== */
   const TOTAL_ROUNDS = 5;
   const DRAW_TIME = 30;
@@ -596,21 +552,17 @@
       });
     }
 
-    // 타이머 및 초침 사운드
+    // 타이머
     const timerElem = document.getElementById('timer');
     timerElem.innerText = gameState.timer;
 
     if (gameState.status === 'PLAYING' && gameState.timer <= 5 && gameState.timer > 0) {
       timerElem.classList.add('timer-warning');
-      if (lastTickPlayedTime !== gameState.timer) {
-        lastTickPlayedTime = gameState.timer;
-        playTickSound(gameState.timer === 1);
-      }
     } else {
       timerElem.classList.remove('timer-warning');
     }
 
-    // 남은 시간이 0 이하일 때 그림 강제 자동 제출
+    // ★ 미제출자의 그림 자동 강제 저장 로직
     if (gameState.status === 'PLAYING' && gameState.timer <= 0 && !hasAutoSubmitted) {
       hasAutoSubmitted = true;
       forceSubmitDrawing();
@@ -655,6 +607,10 @@
         resetCanvasState();
       }
     } else if (gameState.status === 'ROUND_RESULT') {
+      // 결과 화면 진입 전, 혹시 제출 안 된 그림이 있다면 내 그림 강제 제출
+      if (!myUser?.submitted || !myUser?.drawing) {
+        forceSubmitDrawing();
+      }
       showScreen('result-screen');
       document.getElementById('result-round-num').innerText = gameState.round;
       document.getElementById('result-round-header').innerText = gameState.round;
@@ -695,7 +651,6 @@
             clearInterval(timerInterval);
             timerInterval = null;
 
-            // 게임 종료 전 현 참여자의 제출 상태 보장
             forceSubmitDrawing();
 
             if (gameMode === 'MULTI') {
@@ -836,7 +791,6 @@
     }
 
     hasAutoSubmitted = false;
-    lastTickPlayedTime = -1;
     const usedWords = gameState.usedWords || [];
     const nextWord = getUniqueWord(usedWords);
     usedWords.push(nextWord);
@@ -922,7 +876,7 @@
   }
 
   function createRoom(selectedMode) {
-    initAudio();
+    initAudioEngine();
     const input = document.getElementById('nickname-input');
     const name = input.value.trim();
     if (!name) return showAlert('닉네임을 입력해주세요.');
@@ -969,7 +923,7 @@
   }
 
   function joinByCode() {
-    initAudio();
+    initAudioEngine();
     const nameInput = document.getElementById('nickname-input');
     const codeInput = document.getElementById('join-code-input');
     const name = nameInput.value.trim();
@@ -1143,25 +1097,25 @@
     }
   }
 
-  // Canvas 데이터 연동 강제 수동/자동 제출
+  // ★ 자동 그림 제출/저장 함수 (미제출 그림도 무조건 보장)
   function forceSubmitDrawing() {
     const dataUrl = canvas.toDataURL('image/png');
     if (gameMode === 'MULTI') {
-      db.ref('rooms/' + currentRoomCode + '/users/' + myId).update({
-        submitted: true,
-        drawing: dataUrl
-      });
+      if (currentRoomCode) {
+        db.ref('rooms/' + currentRoomCode + '/users/' + myId).update({
+          submitted: true,
+          drawing: dataUrl
+        });
+      }
     } else {
       if (gameState.users[myId]) {
         gameState.users[myId].submitted = true;
         gameState.users[myId].drawing = dataUrl;
         updateUI();
-        handleHostLogic();
       }
     }
   }
 
-  // 결과 / 갤러리 렌더링
   function renderResultScreen() {
     const gallery = document.getElementById('gallery');
     gallery.innerHTML = '';
@@ -1172,6 +1126,7 @@
       item.className = 'gallery-item' + (votedTargetId === u.id ? ' voted' : '');
       
       const img = document.createElement('img');
+      // 그림이 제출되었거나 추출된 데이터가 있는 경우 출력
       img.src = u.drawing || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVShortcut';
 
       const nameLabel = document.createElement('div');
@@ -1223,7 +1178,6 @@
     }
   }
 
-  // 최종 리더보드
   function renderFinalLeaderboard() {
     const tbody = document.getElementById('final-leaderboard-body');
     tbody.innerHTML = '';
