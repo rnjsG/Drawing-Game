@@ -295,7 +295,7 @@
   let votedTargetId = null;
   let lastRoundHandled = 0;
   let hasAutoSubmitted = false;
-  let isTransitioning = false; // 카운트다운/전환 중복 방지 플래그
+  let isTransitioning = false;
 
   let gameState = {
     roomCode: '',
@@ -681,7 +681,6 @@
       timer: DRAW_TIME,
       users: updatedUsers
     }).then(() => {
-      // 1.5초 동안 추가 승급을 완전 차단하여 연달아 넘어가는 현상 방지
       setTimeout(() => {
         isTransitioning = false;
       }, 1500);
