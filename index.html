@@ -1175,36 +1175,55 @@
     });
   }
 
-  function castVote(targetUid) {
-    if (targetUid === myId) return showAlert('자신의 그림에는 투표할 수 없습니다!');
+function castVote(targetUid) {
+  if (targetUid === myId) return showAlert('자신의 그림에는 투표할 수 없습니다!');
 
-    if (votedTargetId === targetUid) {
-      votedTargetId = null;
-      if (gameMode === 'MULTI') {
-        db.ref('rooms/' + currentRoomCode + '/users/' + targetUid + '/votes').transaction(v => Math.max(0, (v || 1) - 1));
-      } else {
-        gameState.users[targetUid].votes = Math.max(0, (gameState.users[targetUid].votes || 0) - 1);
-        updateUI();
-      }
+  // 전체 유저 수 확인 및 최대 투표 수 계산 (4명 이상이면 2표, 3명 이하이면 1표)
+  const totalUsers = Object.keys(gameState.users || {}).length;
+  const maxVotes = totalUsers >= 4 ? 2 : 1;
+
+  // 내가 선택한 투표 대상을 배열로 관리 (배열이 없으면 초기화)
+  if (!window.myVotedTargets) window.myVotedTargets = [];
+
+  const alreadyVotedIndex = window.myVotedTargets.indexOf(targetUid);
+
+  // 1. 이미 내가 투표한 그림을 다시 누른 경우 -> 투표 취소
+  if (alreadyVotedIndex > -1) {
+    window.myVotedTargets.splice(alreadyVotedIndex, 1);
+    
+    if (gameMode === 'MULTI') {
+      db.ref('rooms/' + currentRoomCode + '/users/' + targetUid + '/votes').transaction(v => Math.max(0, (v || 1) - 1));
     } else {
-      if (votedTargetId) {
-        const prevTarget = votedTargetId;
-        if (gameMode === 'MULTI') {
-          db.ref('rooms/' + currentRoomCode + '/users/' + prevTarget + '/votes').transaction(v => Math.max(0, (v || 1) - 1));
-        } else {
-          gameState.users[prevTarget].votes = Math.max(0, (gameState.users[prevTarget].votes || 0) - 1);
-        }
-      }
-
-      votedTargetId = targetUid;
-      if (gameMode === 'MULTI') {
-        db.ref('rooms/' + currentRoomCode + '/users/' + targetUid + '/votes').transaction(v => (v || 0) + 1);
-      } else {
-        gameState.users[targetUid].votes = (gameState.users[targetUid].votes || 0) + 1;
-        updateUI();
-      }
+      gameState.users[targetUid].votes = Math.max(0, (gameState.users[targetUid].votes || 0) - 1);
+      updateUI();
     }
+    return;
   }
+
+  // 2. 새로운 그림에 투표하려는 경우
+  // 1표 제한인데 이미 1표를 행사한 경우 -> 기존 표 취소 후 새로 교체
+  if (maxVotes === 1 && window.myVotedTargets.length >= 1) {
+    const prevTarget = window.myVotedTargets.pop();
+    if (gameMode === 'MULTI') {
+      db.ref('rooms/' + currentRoomCode + '/users/' + prevTarget + '/votes').transaction(v => Math.max(0, (v || 1) - 1));
+    } else {
+      gameState.users[prevTarget].votes = Math.max(0, (gameState.users[prevTarget].votes || 0) - 1);
+    }
+  } 
+  // 2표 제한인데 이미 2표를 모두 행사한 경우 -> 경고창 표시
+  else if (maxVotes === 2 && window.myVotedTargets.length >= 2) {
+    return showAlert('4명 이상 게임에서는 최대 2표까지만 투표할 수 있습니다!');
+  }
+
+  // 투표 반영
+  window.myVotedTargets.push(targetUid);
+  if (gameMode === 'MULTI') {
+    db.ref('rooms/' + currentRoomCode + '/users/' + targetUid + '/votes').transaction(v => (v || 0) + 1);
+  } else {
+    gameState.users[targetUid].votes = (gameState.users[targetUid].votes || 0) + 1;
+    updateUI();
+  }
+}
 
   function renderFinalLeaderboard() {
     const tbody = document.getElementById('final-leaderboard-body');
