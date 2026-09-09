@@ -8,7 +8,6 @@
   <!-- Firebase SDK (CDN) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
-
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; }
     html, body { width: 100%; height: 100%; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; overflow: hidden; }
@@ -22,7 +21,6 @@
     .audio-controls { display: flex; align-items: center; gap: 8px; background: rgba(0, 0, 0, 0.15); padding: 4px 10px; border-radius: 20px; font-size: 12px; }
     .audio-btn { background: none; border: none; color: white; font-size: 16px; cursor: pointer; padding: 0 2px; display: flex; align-items: center; justify-content: center; }
     .volume-slider { width: 60px; accent-color: #f1c40f; cursor: pointer; }
-
     .menu-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; margin-left: 10px; }
     
     .modal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
@@ -32,7 +30,6 @@
     
     #start-countdown-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; z-index: 90; display: none; }
     #start-countdown-num { font-size: 96px; font-weight: bold; color: #f1c40f; margin-top: 10px; }
-
     .btn-danger { background: #e74c3c; color: white; }
     .btn-secondary { background: #95a5a6; color: white; }
     .btn-warning { background: #f39c12; color: white; }
@@ -70,7 +67,6 @@
     
     .timer-warning { color: #e74c3c !important; animation: blink 0.5s infinite alternate; font-size: 22px; font-weight: bold; }
     @keyframes blink { from { opacity: 1; } to { opacity: 0.3; } }
-
     .keyword { font-size: 20px; color: #e74c3c; margin-bottom: 8px; font-weight: bold; }
     #canvas { border: 2px solid #333; border-radius: 8px; background: white; cursor: crosshair; touch-action: none; }
     
@@ -78,7 +74,6 @@
     .color-dot { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #ddd; cursor: pointer; transition: transform 0.1s; }
     .color-dot.active { transform: scale(1.25); border-color: #333; }
     .size-select { margin-left: 10px; padding: 3px 6px; border-radius: 4px; border: 1px solid #ccc; font-size: 12px; }
-
     .controls { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
     
     .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; width: 100%; margin-top: 15px; max-height: 400px; overflow-y: auto; padding: 10px; }
@@ -87,22 +82,18 @@
     .gallery-item.voted { border-color: #2ecc71; background-color: #eafaf1; }
     .gallery-item img { width: 100%; height: 130px; object-fit: contain; border: 1px solid #eee; border-radius: 4px; background: white; }
     .vote-count { margin-top: 5px; font-weight: bold; color: #e74c3c; }
-
     .result-layout { display: flex; width: 100%; height: 100%; gap: 15px; }
     .result-sidebar { width: 30%; border-right: 1px solid #eee; padding-right: 10px; display: flex; flex-direction: column; }
     .result-main { width: 70%; display: flex; flex-direction: column; align-items: center; }
-
     .leaderboard { width: 100%; max-width: 650px; margin-top: 15px; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
     .leaderboard th, .leaderboard td { padding: 10px 12px; text-align: center; border-bottom: 1px solid #eee; font-size: 14px; }
     .leaderboard th { background: #4a90e2; color: white; }
     .leaderboard tr:first-child td { font-size: 16px; font-weight: bold; color: #e67e22; background: #fffdf0; }
-
     .btn { padding: 10px 15px; border: none; background: #4a90e2; color: white; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: bold; }
     .btn:disabled { background: #ccc !important; cursor: not-allowed; }
   </style>
 </head>
 <body>
-
 <div id="game-container">
   <header>
     <div class="header-info">
@@ -125,12 +116,10 @@
       <button class="menu-btn" onclick="toggleMenu(true)">☰</button>
     </div>
   </header>
-
   <div id="start-countdown-overlay">
     <h2 id="countdown-title">잠시 후 게임이 시작됩니다!</h2>
     <div id="start-countdown-num">3</div>
   </div>
-
   <div class="modal-overlay" id="menu-modal">
     <div class="modal-box">
       <h3>게임 메뉴</h3><br>
@@ -138,14 +127,12 @@
       <button class="btn btn-danger" onclick="leaveGame()">게임 나가기</button>
     </div>
   </div>
-
   <div class="modal-overlay" id="alert-modal">
     <div class="modal-box">
       <p id="alert-msg">알림 메시지</p><br>
       <button class="btn" onclick="closeAlert()">확인</button>
     </div>
   </div>
-
   <!-- 1. 로그인 스크린 -->
   <div class="screen active" id="login-screen">
     <div class="login-box">
@@ -156,14 +143,12 @@
       <button class="btn" style="width: 100%; margin-top: 8px;" id="create-btn" onclick="createRoom('MULTI')">새 방 만들기 (방 코드 생성)</button>
       
       <div class="divider"><span>또는 상대방 방에 참여하기</span></div>
-
       <div class="join-code-group">
         <input type="text" id="join-code-input" placeholder="방 코드 6자리" maxlength="6" oninput="this.value = this.value.toUpperCase()">
         <button class="btn btn-warning" style="white-space: nowrap;" id="join-btn" onclick="joinByCode()">코드 입력 후 참여</button>
       </div>
     </div>
   </div>
-
   <!-- 2. 대기실 화면 -->
   <div class="screen" id="lobby-screen">
     <div class="lobby-layout">
@@ -185,7 +170,6 @@
       </div>
     </div>
   </div>
-
   <!-- 3. 게임 화면 -->
   <div class="screen" id="game-screen">
     <div class="game-layout">
@@ -193,7 +177,6 @@
         <h3 style="margin-bottom: 12px;">제출 현황</h3>
         <div id="game-user-list" class="user-vertical-list"></div>
       </div>
-
       <div class="game-main">
         <div class="game-header">
           <div>라운드: <span id="current-round">1</span> / 5</div>
@@ -215,7 +198,6 @@
             <option value="12">두껍게</option>
           </select>
         </div>
-
         <div class="controls">
           <button class="btn btn-secondary" onclick="undoCanvas()">↩️ 실행 취소</button>
           <button class="btn btn-secondary" onclick="redoCanvas()">↪️ 다시 실행</button>
@@ -225,7 +207,6 @@
       </div>
     </div>
   </div>
-
   <!-- 4. 라운드 결과 화면 -->
   <div class="screen" id="result-screen">
     <div class="result-layout">
@@ -248,7 +229,6 @@
       </div>
     </div>
   </div>
-
   <!-- 5. 5라운드 최종 결과 화면 -->
   <div class="screen" id="final-result-screen">
     <h2>🏆 게임 최종 결과 🏆</h2>
@@ -267,7 +247,6 @@
     <button class="btn btn-success" style="margin-top: 25px;" onclick="returnToLobby()">대기실로 돌아가기</button>
   </div>
 </div>
-
 <script>
   const firebaseConfig = {
     apiKey: "AIzaSyAtNrtS13po1dFnp2ghAUgl3oAFAiW_oRQ",
@@ -279,10 +258,8 @@
     appId: "1:1050697457191:web:83f8577762c04a36b03802",
     measurementId: "G-HVFZ8LD7N6"
   };
-
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
-
   /* ======================================================
    * Web Audio API 오디오 및 효과음 엔진
    * ====================================================== */
@@ -292,7 +269,6 @@
   let isMuted = false;
   let currentVolume = 0.3;
   let lastTickedTime = -1; // 타이머 째깍 소리 중복 방지 변수
-
   const bgmMelody = [
     261.63, 329.63, 392.00, 523.25, 392.00, 329.63,
     293.66, 349.23, 440.00, 587.33, 440.00, 349.23,
@@ -300,7 +276,6 @@
     392.00, 440.00, 392.00, 349.23, 329.63, 293.66
   ];
   let melodyIdx = 0;
-
   function ensureAudioContext() {
     if (!audioCtx) {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -313,70 +288,54 @@
       startBGMSequence();
     }
   }
-
   function playBGMNote() {
     if (!audioCtx || isBgmOff || isMuted) return;
     if (audioCtx.state === 'suspended') return;
-
     try {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-
       osc.type = 'sine';
       osc.frequency.setValueAtTime(bgmMelody[melodyIdx], audioCtx.currentTime);
-
       gain.gain.setValueAtTime(currentVolume, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.22);
-
       osc.connect(gain);
       gain.connect(audioCtx.destination);
-
       osc.start();
       osc.stop(audioCtx.currentTime + 0.23);
-
       melodyIdx = (melodyIdx + 1) % bgmMelody.length;
     } catch(e) {
       console.error(e);
     }
   }
-
   // 5초 카운트다운 전용 째깍째깍 효과음 생성 함수
   function playTickSound() {
     if (!audioCtx || isMuted) return;
     if (audioCtx.state === 'suspended') return;
-
     try {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(800, audioCtx.currentTime); // 째깍 고음 영역
       osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.05);
-
       gain.gain.setValueAtTime(currentVolume * 1.5, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
-
       osc.connect(gain);
       gain.connect(audioCtx.destination);
-
       osc.start();
       osc.stop(audioCtx.currentTime + 0.09);
     } catch(e) {
       console.error(e);
     }
   }
-
   function startBGMSequence() {
     if (bgmTimer) clearInterval(bgmTimer);
     bgmTimer = setInterval(() => {
       playBGMNote();
     }, 250);
   }
-
   window.addEventListener('click', () => {
     ensureAudioContext();
   });
-
   function toggleBGM() {
     ensureAudioContext();
     isBgmOff = !isBgmOff;
@@ -390,22 +349,18 @@
       startBGMSequence();
     }
   }
-
   function toggleMute() {
     isMuted = !isMuted;
     document.getElementById('mute-icon').innerText = isMuted ? '🔇' : '🔊';
   }
-
   function changeVolume(val) {
     currentVolume = parseFloat(val);
   }
-
   /* ======================================================
    * 게임 핵심 로직 (그림 제출 및 타이머 연동)
    * ====================================================== */
   const TOTAL_ROUNDS = 5;
   const DRAW_TIME = 30;
-
   const WORDS_POOL = [
     "강아지", "고양이", "호랑이", "사자", "코끼리", "기린", "펭귄", "캥거루", "판다", "돌고래", 
     "상어", "문어", "오징어", "개구리", "뱀", "독수리", "부엉이", "나비", "꿀벌", "무당벌레", 
@@ -423,7 +378,6 @@
     "축구공", "농구공", "야구방망이", "테니스채", "볼링핀", "스케이트보드", "스키", "낚싯대", "피아노", "바이올린", 
     "기타", "드럼", "트럼펫", "마술사모자", "왕관", "트로피", "폭죽", "풍선", "주사위", "카드"
   ];
-
   let myId = 'u_' + Math.random().toString(36).substr(2, 5);
   let myName = '';
   let gameMode = 'MULTI';
@@ -432,11 +386,10 @@
   let timerInterval = null;
   let countdownTimerInterval = null;
   let isForcedStart = false;
-  let votedTargetId = null;
+  let myVotedTargets = [];
   let lastRoundHandled = 0;
   let hasAutoSubmitted = false;
   let isTransitioning = false;
-
   let gameState = {
     roomCode: '',
     hostId: '',
@@ -448,14 +401,12 @@
     usedWords: [],
     timer: DRAW_TIME
   };
-
   function generateRoomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
     for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
     return code;
   }
-
   function getUniqueWord(usedWords = []) {
     let available = WORDS_POOL.filter(w => !usedWords.includes(w));
     if (available.length === 0) {
@@ -466,42 +417,34 @@
     }
     return available[Math.floor(Math.random() * available.length)];
   }
-
   function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(screenId).classList.add('active');
   }
-
   function showAlert(msg) {
     document.getElementById('alert-msg').innerText = msg;
     document.getElementById('alert-modal').classList.add('active');
   }
-
   function closeAlert() { document.getElementById('alert-modal').classList.remove('active'); }
   function toggleMenu(show) { document.getElementById('menu-modal').classList.toggle('active', show); }
-
   function copyRoomCode() {
     if(!currentRoomCode || gameMode === 'SOLO') return;
     navigator.clipboard.writeText(currentRoomCode).then(() => showAlert('방 코드가 복사되었습니다: ' + currentRoomCode));
   }
-
   function kickUser(targetUid, targetName) {
     if (!isHost || gameMode === 'SOLO') return;
     if (confirm(`${targetName}님을 방에서 강퇴하시겠습니까?`)) {
       db.ref(`rooms/${currentRoomCode}/users/${targetUid}`).remove();
     }
   }
-
   function updateUI() {
     const usersArr = Object.values(gameState.users || {});
     isHost = (gameState.hostId === myId);
-
     if (gameMode === 'MULTI' && currentRoomCode && gameState.users && !gameState.users[myId]) {
       alert('방장에 의해 강퇴되었습니다.');
       location.reload();
       return;
     }
-
     if (currentRoomCode && gameMode === 'MULTI') {
       document.getElementById('room-code-badge').style.display = 'block';
       document.getElementById('header-code').innerText = currentRoomCode;
@@ -511,7 +454,6 @@
       document.getElementById('room-code-badge').style.display = 'none';
       document.getElementById('lobby-code-box').style.display = 'none';
     }
-
     document.getElementById('user-count').innerText = usersArr.length;
     
     const lobbyList = document.getElementById('lobby-user-list');
@@ -527,27 +469,22 @@
       if (isHost && u.id !== myId && gameMode === 'MULTI') {
         kickBtnHtml = `<button class="btn-kick" onclick="kickUser('${u.id}', '${u.name}')">강퇴</button>`;
       }
-
       div.innerHTML = `<div><span>${isHostTag} ${u.name} ${isMe}</span>${kickBtnHtml}</div> ${badge}`;
       lobbyList.appendChild(div);
     });
-
     const myUser = gameState.users[myId];
     const readyBtn = document.getElementById('ready-btn');
     if (myUser) {
       readyBtn.innerText = myUser.ready ? "준비 취소" : "준비 완료";
       readyBtn.className = myUser.ready ? "btn btn-secondary" : "btn btn-success";
     }
-
     const hostStartBtn = document.getElementById('host-force-start-btn');
     hostStartBtn.style.display = isHost && gameState.status === 'LOBBY' ? 'inline-block' : 'none';
-
     const hostNextBtn = document.getElementById('host-next-round-btn');
     hostNextBtn.style.display = isHost && gameState.status === 'ROUND_RESULT' ? 'inline-block' : 'none';
     if (isHost && gameState.status === 'ROUND_RESULT') {
       hostNextBtn.innerText = gameState.round >= TOTAL_ROUNDS ? "최종 순위 바로 보기" : "다음 라운드 바로 시작";
     }
-
     const gameUserList = document.getElementById('game-user-list');
     gameUserList.innerHTML = '';
     usersArr.forEach(u => {
@@ -557,7 +494,6 @@
       div.innerHTML = `<span>${u.name}</span> ${badge}`;
       gameUserList.appendChild(div);
     });
-
     const submitBtn = document.getElementById('submit-draw-btn');
     if (myUser && myUser.submitted) {
       submitBtn.innerText = "제출 취소";
@@ -566,7 +502,6 @@
       submitBtn.innerText = "그림 제출 완료";
       submitBtn.className = "btn";
     }
-
     const resultUserList = document.getElementById('result-user-list');
     if (resultUserList) {
       resultUserList.innerHTML = '';
@@ -578,10 +513,8 @@
         resultUserList.appendChild(div);
       });
     }
-
     const timerElem = document.getElementById('timer');
     timerElem.innerText = gameState.timer;
-
     // 5초 이하 타이머 째깍째깍 효과음 및 강조 처리
     if (gameState.status === 'PLAYING' && gameState.timer <= 5 && gameState.timer > 0) {
       timerElem.classList.add('timer-warning');
@@ -592,12 +525,10 @@
     } else {
       timerElem.classList.remove('timer-warning');
     }
-
     if (gameState.status === 'PLAYING' && gameState.timer <= 0 && !hasAutoSubmitted) {
       hasAutoSubmitted = true;
       forceSubmitDrawing();
     }
-
     const countdownOverlay = document.getElementById('start-countdown-overlay');
     if (gameState.startCountdown > 0) {
       countdownOverlay.style.display = 'flex';
@@ -610,7 +541,6 @@
     } else {
       countdownOverlay.style.display = 'none';
     }
-
     const nextBtn = document.getElementById('next-round-btn');
     if (myUser) {
       const isFinalRound = gameState.round >= TOTAL_ROUNDS;
@@ -621,17 +551,15 @@
       }
       nextBtn.className = myUser.readyNext ? "btn btn-secondary" : "btn btn-success";
     }
-
     if (gameState.status === 'LOBBY') {
       if (myName) showScreen('lobby-screen');
     } else if (gameState.status === 'PLAYING') {
       showScreen('game-screen');
       document.getElementById('current-round').innerText = gameState.round;
       document.getElementById('word-display').innerText = gameState.word;
-
       if (lastRoundHandled !== gameState.round) {
         lastRoundHandled = gameState.round;
-        votedTargetId = null;
+        myVotedTargets = [];
         hasAutoSubmitted = false;
         lastTickedTime = -1;
         resetCanvasState();
@@ -649,39 +577,31 @@
       renderFinalLeaderboard();
     }
   }
-
   function listenToRoom(code) {
     db.ref('rooms/' + code).on('value', (snapshot) => {
       const data = snapshot.val();
       if (!data) return;
-
       gameState = data;
       updateUI();
-
       if (isHost && gameMode === 'MULTI') {
         handleHostLogic();
       }
     });
   }
-
   function handleHostLogic() {
     const usersArr = Object.values(gameState.users || {});
     
     if (gameState.status === 'PLAYING') {
       cancelCountdown();
-
       if (!timerInterval) {
         timerInterval = setInterval(() => {
           let newTime = gameState.timer - 1;
           const currentUsers = Object.values(gameState.users || {});
           const allSubmitted = currentUsers.length > 0 && currentUsers.every(u => u.submitted === true);
-
           if (newTime <= 0 || allSubmitted) {
             clearInterval(timerInterval);
             timerInterval = null;
-
             forceSubmitDrawing();
-
             if (gameMode === 'MULTI') {
               db.ref('rooms/' + currentRoomCode).update({
                 status: 'ROUND_RESULT',
@@ -711,9 +631,7 @@
         timerInterval = null;
       }
     }
-
     if (isForcedStart || isTransitioning) return;
-
     if (gameState.status === 'LOBBY' && usersArr.length > 0 && usersArr.every(u => u.ready)) {
       if (gameState.startCountdown === 0 && !countdownTimerInterval) {
         startCountdownTimer(5, () => startNewRound(1));
@@ -721,7 +639,6 @@
     } else if (gameState.status === 'LOBBY' && !usersArr.every(u => u.ready) && gameState.startCountdown > 0) {
       cancelCountdown();
     }
-
     if (gameState.status === 'ROUND_RESULT' && usersArr.length > 0 && usersArr.every(u => u.readyNext)) {
       if (gameState.startCountdown === 0 && !countdownTimerInterval) {
         startCountdownTimer(3, () => proceedNextRoundStep());
@@ -730,7 +647,6 @@
       cancelCountdown();
     }
   }
-
   function saveRoundVotesToHistory() {
     const currentRound = gameState.round;
     Object.keys(gameState.users || {}).forEach(uid => {
@@ -744,7 +660,6 @@
       }
     });
   }
-
   function startCountdownTimer(seconds, onComplete) {
     cancelCountdown();
     isTransitioning = true;
@@ -756,7 +671,6 @@
       gameState.startCountdown = count;
       updateUI();
     }
-
     countdownTimerInterval = setInterval(() => {
       count--;
       if (count > 0) {
@@ -773,7 +687,6 @@
       }
     }, 1000);
   }
-
   function cancelCountdown() {
     if (countdownTimerInterval) {
       clearInterval(countdownTimerInterval);
@@ -781,19 +694,16 @@
     }
     isTransitioning = false;
   }
-
   function forceStartGame() {
     if (isTransitioning) return;
     isForcedStart = true;
     startCountdownTimer(3, () => startNewRound(1));
   }
-
   function forceNextRound() {
     if (isTransitioning) return;
     isForcedStart = true;
     startCountdownTimer(3, () => proceedNextRoundStep());
   }
-
   function proceedNextRoundStep() {
     saveRoundVotesToHistory();
     if (gameState.round < TOTAL_ROUNDS) {
@@ -811,20 +721,17 @@
       }
     }
   }
-
   function startNewRound(roundNum) {
     cancelCountdown();
     if (timerInterval) {
       clearInterval(timerInterval);
       timerInterval = null;
     }
-
     hasAutoSubmitted = false;
     lastTickedTime = -1;
     const usedWords = gameState.usedWords || [];
     const nextWord = getUniqueWord(usedWords);
     usedWords.push(nextWord);
-
     const updatedUsers = {};
     Object.keys(gameState.users || {}).forEach(uid => {
       const u = gameState.users[uid];
@@ -839,7 +746,6 @@
         roundHistory: u.roundHistory || {}
       };
     });
-
     if (gameMode === 'MULTI') {
       db.ref('rooms/' + currentRoomCode).update({
         status: 'PLAYING',
@@ -865,7 +771,6 @@
       setTimeout(() => { isTransitioning = false; }, 1000);
     }
   }
-
   function returnToLobby() {
     if (gameMode === 'SOLO') {
       gameState.status = 'LOBBY';
@@ -891,7 +796,6 @@
       resetUsersReady();
     }
   }
-
   function resetUsersReady() {
     Object.keys(gameState.users || {}).forEach(uid => {
       db.ref('rooms/' + currentRoomCode + '/users/' + uid).update({
@@ -904,16 +808,13 @@
       });
     });
   }
-
   function createRoom(selectedMode) {
     ensureAudioContext();
     const input = document.getElementById('nickname-input');
     const name = input.value.trim();
     if (!name) return showAlert('닉네임을 입력해주세요.');
-
     myName = name;
     gameMode = selectedMode;
-
     if (gameMode === 'SOLO') {
       currentRoomCode = 'SOLO';
       isHost = true;
@@ -935,7 +836,6 @@
       isHost = true;
       const initialUsers = {};
       initialUsers[myId] = { id: myId, name: myName, ready: false, votes: 0, roundHistory: {}, drawing: '', submitted: false };
-
       db.ref('rooms/' + currentRoomCode).set({
         roomCode: currentRoomCode,
         hostId: myId,
@@ -951,27 +851,22 @@
       });
     }
   }
-
   function joinByCode() {
     ensureAudioContext();
     const nameInput = document.getElementById('nickname-input');
     const codeInput = document.getElementById('join-code-input');
     const name = nameInput.value.trim();
     const code = codeInput.value.trim().toUpperCase();
-
     if (!name) return showAlert('닉네임을 입력해주세요.');
     if (!code || code.length !== 6) return showAlert('6자리 방 코드를 입력하세요.');
-
     myName = name;
     gameMode = 'MULTI';
     currentRoomCode = code;
-
     db.ref('rooms/' + code).once('value', (snapshot) => {
       if (!snapshot.exists()) {
         showAlert('존재하지 않는 방 코드입니다.');
         return;
       }
-
       db.ref('rooms/' + code + '/users/' + myId).set({
         id: myId, name: myName, ready: false, votes: 0, roundHistory: {}, drawing: '', submitted: false
       }).then(() => {
@@ -979,7 +874,6 @@
       });
     });
   }
-
   function toggleReady() {
     if (gameMode === 'SOLO') {
       gameState.users[myId].ready = !gameState.users[myId].ready;
@@ -990,7 +884,6 @@
     const currentReady = gameState.users[myId]?.ready || false;
     db.ref('rooms/' + currentRoomCode + '/users/' + myId + '/ready').set(!currentReady);
   }
-
   function toggleReadyNextRound() {
     if (gameMode === 'SOLO') {
       gameState.users[myId].readyNext = !gameState.users[myId].readyNext;
@@ -998,13 +891,10 @@
       handleHostLogic();
       return;
     }
-
     const currentReadyNext = gameState.users[myId]?.readyNext || false;
     db.ref('rooms/' + currentRoomCode + '/users/' + myId + '/readyNext').set(!currentReadyNext);
   }
-
   function leaveGame() { location.reload(); }
-
   // Canvas 드로잉 핸들러
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
@@ -1013,7 +903,6 @@
   let redoStack = [];
   let currentColor = '#000000';
   let currentLineWidth = 6;
-
   function resetCanvasState() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#ffffff';
@@ -1022,13 +911,11 @@
     redoStack = [];
     saveCanvasState();
   }
-
   function saveCanvasState() {
     if (undoStack.length > 20) undoStack.shift();
     undoStack.push(canvas.toDataURL());
     redoStack = [];
   }
-
   function undoCanvas() {
     if (undoStack.length > 1) {
       redoStack.push(undoStack.pop());
@@ -1040,7 +927,6 @@
       };
     }
   }
-
   function redoCanvas() {
     if (redoStack.length > 0) {
       const state = redoStack.pop();
@@ -1053,21 +939,17 @@
       };
     }
   }
-
   function clearCanvas() {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     saveCanvasState();
   }
-
   function setColor(color, el) {
     currentColor = color;
     document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
     el.classList.add('active');
   }
-
   function setLineWidth(val) { currentLineWidth = val; }
-
   function getPos(e) {
     const rect = canvas.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -1077,7 +959,6 @@
       y: (clientY - rect.top) * (canvas.height / rect.height)
     };
   }
-
   function startDrawing(e) {
     isDrawing = true;
     const pos = getPos(e);
@@ -1088,30 +969,25 @@
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
   }
-
   function draw(e) {
     if (!isDrawing) return;
     const pos = getPos(e);
     ctx.lineTo(pos.x, pos.y);
     ctx.stroke();
   }
-
   function stopDrawing() {
     if (isDrawing) {
       isDrawing = false;
       saveCanvasState();
     }
   }
-
   canvas.addEventListener('mousedown', startDrawing);
   canvas.addEventListener('mousemove', draw);
   canvas.addEventListener('mouseup', stopDrawing);
   canvas.addEventListener('mouseleave', stopDrawing);
-
   canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); });
   canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); });
   canvas.addEventListener('touchend', stopDrawing);
-
   function toggleSubmitDrawing() {
     const myUser = gameState.users[myId];
     if (myUser && myUser.submitted) {
@@ -1126,7 +1002,6 @@
       forceSubmitDrawing();
     }
   }
-
   function forceSubmitDrawing() {
     const dataUrl = canvas.toDataURL('image/png');
     if (gameMode === 'MULTI') {
@@ -1144,91 +1019,74 @@
       }
     }
   }
-
   function renderResultScreen() {
     const gallery = document.getElementById('gallery');
     gallery.innerHTML = '';
     const usersArr = Object.values(gameState.users || {});
-
     usersArr.forEach(u => {
       const item = document.createElement('div');
-      item.className = 'gallery-item' + (votedTargetId === u.id ? ' voted' : '');
+      item.className = 'gallery-item' + (myVotedTargets.includes(u.id) ? ' voted' : '');
       
       const img = document.createElement('img');
       img.src = u.drawing || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVShortcut';
-
       const nameLabel = document.createElement('div');
       nameLabel.style.fontWeight = 'bold';
       nameLabel.style.marginTop = '6px';
       nameLabel.innerText = u.name + (u.id === myId ? ' (내 그림)' : '');
-
       const voteLabel = document.createElement('div');
       voteLabel.className = 'vote-count';
       voteLabel.innerText = `❤️ ${u.votes || 0} 표`;
-
       item.appendChild(img);
       item.appendChild(nameLabel);
       item.appendChild(voteLabel);
-
       item.onclick = () => castVote(u.id);
       gallery.appendChild(item);
     });
   }
-
-function castVote(targetUid) {
-  if (targetUid === myId) return showAlert('자신의 그림에는 투표할 수 없습니다!');
-
-  // 전체 유저 수 확인 및 최대 투표 수 계산 (4명 이상이면 2표, 3명 이하이면 1표)
-  const totalUsers = Object.keys(gameState.users || {}).length;
-  const maxVotes = totalUsers >= 4 ? 2 : 1;
-
-  // 내가 선택한 투표 대상을 배열로 관리 (배열이 없으면 초기화)
-  if (!window.myVotedTargets) window.myVotedTargets = [];
-
-  const alreadyVotedIndex = window.myVotedTargets.indexOf(targetUid);
-
-  // 1. 이미 내가 투표한 그림을 다시 누른 경우 -> 투표 취소
-  if (alreadyVotedIndex > -1) {
-    window.myVotedTargets.splice(alreadyVotedIndex, 1);
-    
+  function castVote(targetUid) {
+    if (targetUid === myId) return showAlert('자신의 그림에는 투표할 수 없습니다!');
+    // 전체 유저 수 확인 및 최대 투표 수 계산 (4명 이상이면 2표, 3명 이하이면 1표)
+    const totalUsers = Object.keys(gameState.users || {}).length;
+    const maxVotes = totalUsers >= 4 ? 2 : 1;
+    const alreadyVotedIndex = myVotedTargets.indexOf(targetUid);
+    // 1. 이미 내가 투표한 그림을 다시 누른 경우 -> 투표 취소
+    if (alreadyVotedIndex > -1) {
+      myVotedTargets.splice(alreadyVotedIndex, 1);
+      
+      if (gameMode === 'MULTI') {
+        db.ref('rooms/' + currentRoomCode + '/users/' + targetUid + '/votes').transaction(v => Math.max(0, (v || 1) - 1));
+      } else {
+        gameState.users[targetUid].votes = Math.max(0, (gameState.users[targetUid].votes || 0) - 1);
+        updateUI();
+      }
+      return;
+    }
+    // 2. 새로운 그림에 투표하려는 경우
+    // 1표 제한인데 이미 1표를 행사한 경우 -> 기존 표 취소 후 새로 교체
+    if (maxVotes === 1 && myVotedTargets.length >= 1) {
+      const prevTarget = myVotedTargets.pop();
+      if (gameMode === 'MULTI') {
+        db.ref('rooms/' + currentRoomCode + '/users/' + prevTarget + '/votes').transaction(v => Math.max(0, (v || 1) - 1));
+      } else {
+        gameState.users[prevTarget].votes = Math.max(0, (gameState.users[prevTarget].votes || 0) - 1);
+      }
+    } 
+    // 2표 제한인데 이미 2표를 모두 행사한 경우 -> 경고창 표시
+    else if (maxVotes === 2 && myVotedTargets.length >= 2) {
+      return showAlert('4명 이상 게임에서는 최대 2표까지만 투표할 수 있습니다!');
+    }
+    // 투표 반영
+    myVotedTargets.push(targetUid);
     if (gameMode === 'MULTI') {
-      db.ref('rooms/' + currentRoomCode + '/users/' + targetUid + '/votes').transaction(v => Math.max(0, (v || 1) - 1));
+      db.ref('rooms/' + currentRoomCode + '/users/' + targetUid + '/votes').transaction(v => (v || 0) + 1);
     } else {
-      gameState.users[targetUid].votes = Math.max(0, (gameState.users[targetUid].votes || 0) - 1);
+      gameState.users[targetUid].votes = (gameState.users[targetUid].votes || 0) + 1;
       updateUI();
     }
-    return;
   }
-
-  // 2. 새로운 그림에 투표하려는 경우
-  // 1표 제한인데 이미 1표를 행사한 경우 -> 기존 표 취소 후 새로 교체
-  if (maxVotes === 1 && window.myVotedTargets.length >= 1) {
-    const prevTarget = window.myVotedTargets.pop();
-    if (gameMode === 'MULTI') {
-      db.ref('rooms/' + currentRoomCode + '/users/' + prevTarget + '/votes').transaction(v => Math.max(0, (v || 1) - 1));
-    } else {
-      gameState.users[prevTarget].votes = Math.max(0, (gameState.users[prevTarget].votes || 0) - 1);
-    }
-  } 
-  // 2표 제한인데 이미 2표를 모두 행사한 경우 -> 경고창 표시
-  else if (maxVotes === 2 && window.myVotedTargets.length >= 2) {
-    return showAlert('4명 이상 게임에서는 최대 2표까지만 투표할 수 있습니다!');
-  }
-
-  // 투표 반영
-  window.myVotedTargets.push(targetUid);
-  if (gameMode === 'MULTI') {
-    db.ref('rooms/' + currentRoomCode + '/users/' + targetUid + '/votes').transaction(v => (v || 0) + 1);
-  } else {
-    gameState.users[targetUid].votes = (gameState.users[targetUid].votes || 0) + 1;
-    updateUI();
-  }
-}
-
   function renderFinalLeaderboard() {
     const tbody = document.getElementById('final-leaderboard-body');
     tbody.innerHTML = '';
-
     const usersArr = Object.values(gameState.users || {});
     
     const userScores = usersArr.map(u => {
@@ -1245,17 +1103,14 @@ function castVote(targetUid) {
         historyText: historyArr.join(' / ')
       };
     });
-
     userScores.sort((a, b) => b.totalVotes - a.totalVotes);
-
     userScores.forEach((item, idx) => {
       const tr = document.createElement('tr');
       let rankBadge = `${idx + 1}위`;
-  if (idx === userScores.length - 1 && idx > 0) rankBadge = '💩 꼴등';
-  else if (idx === 0) rankBadge = '🥇 1위';
-  else if (idx === 1) rankBadge = '🥈 2위';
-  else if (idx === 2) rankBadge = '🥉 3위';
-
+      if (idx === userScores.length - 1 && idx > 0) rankBadge = '💩 꼴등';
+      else if (idx === 0) rankBadge = '🥇 1위';
+      else if (idx === 1) rankBadge = '🥈 2위';
+      else if (idx === 2) rankBadge = '🥉 3위';
       tr.innerHTML = `
         <td>${rankBadge}</td>
         <td><b>${item.name}</b></td>
@@ -1266,6 +1121,5 @@ function castVote(targetUid) {
     });
   }
 </script>
-
 </body>
 </html>
