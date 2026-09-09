@@ -284,7 +284,7 @@
   const db = firebase.database();
 
   /* ======================================================
-   * Web Audio API 합성음 BGM 엔진 (Autoplay 차단 완벽 해제)
+   * Web Audio API 합성음 BGM 엔진 (직접적인 오디오 생성 구조)
    * ====================================================== */
   let audioCtx = null;
   let bgmTimer = null;
@@ -292,7 +292,6 @@
   let isMuted = false;
   let currentVolume = 0.3;
 
-  // C4 ~ C5 멜로디 파형 데이터 (헤르츠)
   const bgmMelody = [
     261.63, 329.63, 392.00, 523.25, 392.00, 329.63,
     293.66, 349.23, 440.00, 587.33, 440.00, 349.23,
@@ -301,30 +300,34 @@
   ];
   let melodyIdx = 0;
 
-  // 브라우저 차단 상태 해제 핵심 함수
-  function unlockAudioContext() {
+  function initAudioEngine() {
     if (!audioCtx) {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       audioCtx = new AudioContextClass();
     }
     
     if (audioCtx.state === 'suspended') {
-      audioCtx.resume().then(() => {
-        if (!bgmTimer && !isBgmOff) startBGMSequence();
-      });
-    } else {
-      if (!bgmTimer && !isBgmOff) startBGMSequence();
+      audioCtx.resume();
+    }
+
+    if (!bgmTimer && !isBgmOff) {
+      startBGMSequence();
     }
   }
 
   function playBGMNote() {
-    if (!audioCtx || isBgmOff || isMuted || audioCtx.state !== 'running') return;
+    if (!audioCtx || isBgmOff || isMuted) return;
+
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+      return;
+    }
 
     try {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
 
-      osc.type = 'triangle'; // 부드러운 삼각파 사용
+      osc.type = 'sine';
       osc.frequency.setValueAtTime(bgmMelody[melodyIdx], audioCtx.currentTime);
 
       gain.gain.setValueAtTime(currentVolume, audioCtx.currentTime);
@@ -349,12 +352,11 @@
     }, 250);
   }
 
-  // 화면의 모든 클릭/터치 시 브라우저 오디오 권한 확보
-  window.addEventListener('pointerdown', unlockAudioContext, { once: false });
-  window.addEventListener('keydown', unlockAudioContext, { once: false });
+  // 사용자 첫 클릭 시 오디오 엔진 구동
+  document.addEventListener('click', initAudioEngine, { once: false });
 
   function toggleBGM() {
-    unlockAudioContext();
+    initAudioEngine();
     isBgmOff = !isBgmOff;
     document.getElementById('music-slash').style.display = isBgmOff ? 'block' : 'none';
     if (isBgmOff) {
@@ -490,7 +492,6 @@
 
     document.getElementById('user-count').innerText = usersArr.length;
     
-    // 대기실 유저 목록
     const lobbyList = document.getElementById('lobby-user-list');
     lobbyList.innerHTML = '';
     usersArr.forEach(u => {
@@ -525,7 +526,6 @@
       hostNextBtn.innerText = gameState.round >= TOTAL_ROUNDS ? "최종 순위 바로 보기" : "다음 라운드 바로 시작";
     }
 
-    // 게임 중 제출 목록
     const gameUserList = document.getElementById('game-user-list');
     gameUserList.innerHTML = '';
     usersArr.forEach(u => {
@@ -536,7 +536,6 @@
       gameUserList.appendChild(div);
     });
 
-    // 제출 버튼 UI
     const submitBtn = document.getElementById('submit-draw-btn');
     if (myUser && myUser.submitted) {
       submitBtn.innerText = "제출 취소";
@@ -546,7 +545,6 @@
       submitBtn.className = "btn";
     }
 
-    // 결과 화면 준비 목록
     const resultUserList = document.getElementById('result-user-list');
     if (resultUserList) {
       resultUserList.innerHTML = '';
@@ -559,7 +557,6 @@
       });
     }
 
-    // 타이머
     const timerElem = document.getElementById('timer');
     timerElem.innerText = gameState.timer;
 
@@ -569,7 +566,6 @@
       timerElem.classList.remove('timer-warning');
     }
 
-    // 미제출자의 그림 자동 강제 저장
     if (gameState.status === 'PLAYING' && gameState.timer <= 0 && !hasAutoSubmitted) {
       hasAutoSubmitted = true;
       forceSubmitDrawing();
@@ -588,7 +584,6 @@
       countdownOverlay.style.display = 'none';
     }
 
-    // 다음 라운드 버튼
     const nextBtn = document.getElementById('next-round-btn');
     if (myUser) {
       const isFinalRound = gameState.round >= TOTAL_ROUNDS;
@@ -882,7 +877,7 @@
   }
 
   function createRoom(selectedMode) {
-    unlockAudioContext();
+    initAudioEngine();
     const input = document.getElementById('nickname-input');
     const name = input.value.trim();
     if (!name) return showAlert('닉네임을 입력해주세요.');
@@ -929,7 +924,7 @@
   }
 
   function joinByCode() {
-    unlockAudioContext();
+    initAudioEngine();
     const nameInput = document.getElementById('nickname-input');
     const codeInput = document.getElementById('join-code-input');
     const name = nameInput.value.trim();
