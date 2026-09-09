@@ -112,14 +112,14 @@
     <div style="display: flex; align-items: center;">
       <!-- 배경음악/효과음 오디오 컨트롤러 -->
       <div class="audio-controls">
-        <!-- 1. BGM 토글 버튼 (음악 아이콘 + 꺼짐 상태 시 빨간 대각선) -->
+        <!-- 1. BGM 토글 버튼 -->
         <button id="bgm-toggle-btn" class="audio-btn" onclick="toggleBGM()" title="배경음악 켜기/끄기">
           <svg id="music-svg" width="20" height="20" viewBox="0 0 24 24" style="vertical-align: middle;">
             <path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
             <line id="music-slash" x1="3" y1="3" x2="21" y2="21" stroke="#e74c3c" stroke-width="3" stroke-linecap="round" style="display: none;"/>
           </svg>
         </button>
-        <!-- 2. 전체 음소거(Mute) 버튼 (볼륨 조절 슬라이더 왼쪽) -->
+        <!-- 2. 전체 음소거 버튼 -->
         <button id="mute-toggle-btn" class="audio-btn" onclick="toggleMute()" title="음소거 켜기/끄기">
           <span id="mute-icon">🔊</span>
         </button>
@@ -176,7 +176,7 @@
         <div id="lobby-user-list" class="user-vertical-list"></div>
       </div>
       <div class="lobby-main-panel">
-        <div class="code-display-box">
+        <div class="code-display-box" id="lobby-code-box">
           <div style="font-size:12px; color:#666; margin-bottom:5px;">같이 할 사람에게 코드를 알려주세요!</div>
           <span id="lobby-room-code">XXXXXX</span><br>
           <button class="btn btn-secondary" style="margin-top:10px; padding:4px 10px; font-size:12px;" onclick="copyRoomCode()">코드 복사</button>
@@ -184,7 +184,7 @@
         <h3 id="ready-status-msg" style="margin-bottom: 15px; color: #e67e22;">모든 참여자가 준비를 완료하면 5초 후 게임이 시작됩니다.</h3>
         <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
           <button class="btn" id="ready-btn" onclick="toggleReady()">준비 완료</button>
-          <button class="btn btn-warning" id="host-force-start-btn" style="display: none;" onclick="forceStartGame()">게임 바로 시작 (방장전용)</button>
+          <button class="btn btn-warning" id="host-force-start-btn" style="display: none;" onclick="forceStartGame()">게임 바로 시작</button>
         </div>
       </div>
     </div>
@@ -247,7 +247,7 @@
         
         <div style="margin-top: 15px; text-align: center; display: flex; gap: 10px; justify-content: center;">
           <button class="btn btn-success" id="next-round-btn" onclick="toggleReadyNextRound()">다음 라운드 준비 완료</button>
-          <button class="btn btn-warning" id="host-next-round-btn" style="display: none;" onclick="forceNextRound()">다음 라운드 바로 시작 (방장전용)</button>
+          <button class="btn btn-warning" id="host-next-round-btn" style="display: none;" onclick="forceNextRound()">다음 라운드 바로 시작</button>
         </div>
       </div>
     </div>
@@ -288,14 +288,14 @@
   const db = firebase.database();
 
   /* ======================================================
-   * Web Audio API (배경음악, 효과음 및 오디오 컨트롤러)
+   * Web Audio API (개선된 오디오 엔진 및 컨트롤러)
    * ====================================================== */
   let audioCtx = null;
   let masterGainNode = null;
   let bgmGainNode = null;
   
-  let isBgmOff = false;   // 배경음악만 꺼짐 여부
-  let isMuted = false;    // 전체 음소거 여부
+  let isBgmOff = false;
+  let isMuted = false;
   let bgmInterval = null;
   let bgmStep = 0;
   let masterVolume = 0.3;
@@ -325,6 +325,11 @@
       console.warn("Web Audio API Initializing error:", e);
     }
   }
+
+  // 화면 내 클릭/터치/키보드 감지 시 브라우저 오디오 차단 자동 해제
+  ['click', 'touchstart', 'keydown'].forEach(evt => {
+    window.addEventListener(evt, () => { initAudio(); }, { once: false });
+  });
 
   function startBGMSequence() {
     const notes = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63, 293.66, 349.23, 440.00, 349.23, 329.63, 392.00];
@@ -371,20 +376,13 @@
     osc.stop(audioCtx.currentTime + 0.06);
   }
 
-  /* 1. 배경음악 ON / OFF 토글 함수 */
   function toggleBGM() {
     initAudio();
     isBgmOff = !isBgmOff;
     const slash = document.getElementById('music-slash');
-    
-    if (isBgmOff) {
-      slash.style.display = 'block'; // 빨간색 대각선 표시
-    } else {
-      slash.style.display = 'none';  // 대각선 숨김
-    }
+    slash.style.display = isBgmOff ? 'block' : 'none';
   }
 
-  /* 2. 소리 아예 끄기 (전체 Mute) 토글 함수 */
   function toggleMute() {
     initAudio();
     isMuted = !isMuted;
@@ -399,7 +397,6 @@
     }
   }
 
-  /* 3. 볼륨 슬라이더 값 변경 함수 */
   function changeVolume(val) {
     masterVolume = parseFloat(val);
     if (masterGainNode && audioCtx && !isMuted) {
@@ -407,12 +404,8 @@
     }
   }
 
-  window.addEventListener('click', () => { initAudio(); }, { once: true });
-  window.addEventListener('touchstart', () => { initAudio(); }, { once: true });
-
-
   /* ======================================================
-   * 게임 핵심 로직
+   * 게임 핵심 로직 (솔로/멀티 세션 버그 수정 적용)
    * ====================================================== */
   const TOTAL_ROUNDS = 5;
   const DRAW_TIME = 30;
@@ -492,12 +485,12 @@
   function toggleMenu(show) { document.getElementById('menu-modal').classList.toggle('active', show); }
 
   function copyRoomCode() {
-    if(!currentRoomCode) return;
+    if(!currentRoomCode || gameMode === 'SOLO') return;
     navigator.clipboard.writeText(currentRoomCode).then(() => showAlert('방 코드가 복사되었습니다: ' + currentRoomCode));
   }
 
   function kickUser(targetUid, targetName) {
-    if (!isHost) return;
+    if (!isHost || gameMode === 'SOLO') return;
     if (confirm(`${targetName}님을 방에서 강퇴하시겠습니까?`)) {
       db.ref(`rooms/${currentRoomCode}/users/${targetUid}`).remove();
     }
@@ -517,6 +510,10 @@
       document.getElementById('room-code-badge').style.display = 'block';
       document.getElementById('header-code').innerText = currentRoomCode;
       document.getElementById('lobby-room-code').innerText = currentRoomCode;
+      document.getElementById('lobby-code-box').style.display = 'block';
+    } else {
+      document.getElementById('room-code-badge').style.display = 'none';
+      document.getElementById('lobby-code-box').style.display = 'none';
     }
 
     document.getElementById('user-count').innerText = usersArr.length;
@@ -548,12 +545,12 @@
     }
 
     const hostStartBtn = document.getElementById('host-force-start-btn');
-    hostStartBtn.style.display = (isHost && gameState.status === 'LOBBY' && gameMode === 'MULTI') ? 'inline-block' : 'none';
+    hostStartBtn.style.display = isHost && gameState.status === 'LOBBY' ? 'inline-block' : 'none';
 
     const hostNextBtn = document.getElementById('host-next-round-btn');
-    hostNextBtn.style.display = (isHost && gameState.status === 'ROUND_RESULT' && gameMode === 'MULTI') ? 'inline-block' : 'none';
+    hostNextBtn.style.display = isHost && gameState.status === 'ROUND_RESULT' ? 'inline-block' : 'none';
     if (isHost && gameState.status === 'ROUND_RESULT') {
-      hostNextBtn.innerText = gameState.round >= TOTAL_ROUNDS ? "최종 순위 바로 보기 (방장전용)" : "다음 라운드 바로 시작 (방장전용)";
+      hostNextBtn.innerText = gameState.round >= TOTAL_ROUNDS ? "최종 순위 바로 보기" : "다음 라운드 바로 시작";
     }
 
     // 게임 중 제출 목록
@@ -567,7 +564,7 @@
       gameUserList.appendChild(div);
     });
 
-    // 제출 버튼 UI 조절
+    // 제출 버튼 UI
     const submitBtn = document.getElementById('submit-draw-btn');
     if (myUser && myUser.submitted) {
       submitBtn.innerText = "제출 취소";
@@ -590,13 +587,12 @@
       });
     }
 
-    // 타이머 및 5초 전 초침 sound 효과
+    // 타이머 및 초침 사운드
     const timerElem = document.getElementById('timer');
     timerElem.innerText = gameState.timer;
 
     if (gameState.status === 'PLAYING' && gameState.timer <= 5 && gameState.timer > 0) {
       timerElem.classList.add('timer-warning');
-      
       if (lastTickPlayedTime !== gameState.timer) {
         lastTickPlayedTime = gameState.timer;
         playTickSound(gameState.timer === 1);
@@ -605,7 +601,7 @@
       timerElem.classList.remove('timer-warning');
     }
 
-    // 타임아웃 발생 시 자동 제출 처리
+    // 타임아웃 처리
     if (gameState.status === 'PLAYING' && gameState.timer <= 0 && !hasAutoSubmitted) {
       hasAutoSubmitted = true;
       forceSubmitDrawing();
@@ -614,19 +610,17 @@
     const countdownOverlay = document.getElementById('start-countdown-overlay');
     if (gameState.startCountdown > 0) {
       countdownOverlay.style.display = 'flex';
-      
       if (gameState.status === 'ROUND_RESULT') {
         document.getElementById('countdown-title').innerText = gameState.round >= TOTAL_ROUNDS ? "잠시 후 최종 결과가 공개됩니다!" : "잠시 후 다음 라운드가 시작됩니다!";
       } else {
         document.getElementById('countdown-title').innerText = "잠시 후 게임이 시작됩니다!";
       }
-      
       document.getElementById('start-countdown-num').innerText = gameState.startCountdown;
     } else {
       countdownOverlay.style.display = 'none';
     }
 
-    // 다음 라운드 / 최종 순위 보기 버튼 문구 교체
+    // 다음 라운드 버튼
     const nextBtn = document.getElementById('next-round-btn');
     if (myUser) {
       const isFinalRound = gameState.round >= TOTAL_ROUNDS;
@@ -793,13 +787,13 @@
   }
 
   function forceStartGame() {
-    if (!isHost || isTransitioning) return;
+    if (isTransitioning) return;
     isForcedStart = true;
     startCountdownTimer(3, () => startNewRound(1));
   }
 
   function forceNextRound() {
-    if (!isHost || isTransitioning) return;
+    if (isTransitioning) return;
     isForcedStart = true;
     startCountdownTimer(3, () => proceedNextRoundStep());
   }
@@ -817,6 +811,7 @@
         gameState.status = 'FINAL_RESULT';
         gameState.startCountdown = 0;
         updateUI();
+        isTransitioning = false;
       }
     }
   }
@@ -859,7 +854,7 @@
         timer: DRAW_TIME,
         users: updatedUsers
       }).then(() => {
-        setTimeout(() => { isTransitioning = false; }, 1500);
+        setTimeout(() => { isTransitioning = false; }, 1000);
       });
     } else {
       gameState.status = 'PLAYING';
@@ -871,13 +866,23 @@
       gameState.users = updatedUsers;
       updateUI();
       handleHostLogic();
-      setTimeout(() => { isTransitioning = false; }, 1500);
+      setTimeout(() => { isTransitioning = false; }, 1000);
     }
   }
 
   function returnToLobby() {
     if (gameMode === 'SOLO') {
-      showScreen('login-screen');
+      gameState.status = 'LOBBY';
+      gameState.startCountdown = 0;
+      gameState.round = 1;
+      gameState.usedWords = [];
+      gameState.users[myId].ready = false;
+      gameState.users[myId].readyNext = false;
+      gameState.users[myId].submitted = false;
+      gameState.users[myId].votes = 0;
+      gameState.users[myId].roundHistory = {};
+      gameState.users[myId].drawing = '';
+      updateUI();
       return;
     }
     if (isHost) {
