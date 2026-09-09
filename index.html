@@ -20,7 +20,7 @@
     
     /* 오디오 컨트롤러 스타일 */
     .audio-controls { display: flex; align-items: center; gap: 8px; background: rgba(0, 0, 0, 0.15); padding: 4px 10px; border-radius: 20px; font-size: 12px; }
-    .audio-btn { background: none; border: none; color: white; font-size: 16px; cursor: pointer; padding: 0 2px; }
+    .audio-btn { background: none; border: none; color: white; font-size: 16px; cursor: pointer; padding: 0 2px; display: flex; align-items: center; justify-content: center; }
     .volume-slider { width: 60px; accent-color: #f1c40f; cursor: pointer; }
 
     .menu-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; margin-left: 10px; }
@@ -112,7 +112,18 @@
     <div style="display: flex; align-items: center;">
       <!-- 배경음악/효과음 오디오 컨트롤러 -->
       <div class="audio-controls">
-        <button id="bgm-toggle-btn" class="audio-btn" onclick="toggleBGM()">🎵</button>
+        <!-- 1. BGM 토글 버튼 (음악 아이콘 + 꺼짐 상태 시 빨간 대각선) -->
+        <button id="bgm-toggle-btn" class="audio-btn" onclick="toggleBGM()" title="배경음악 켜기/끄기">
+          <svg id="music-svg" width="20" height="20" viewBox="0 0 24 24" style="vertical-align: middle;">
+            <path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+            <line id="music-slash" x1="3" y1="3" x2="21" y2="21" stroke="#e74c3c" stroke-width="3" stroke-linecap="round" style="display: none;"/>
+          </svg>
+        </button>
+        <!-- 2. 전체 음소거(Mute) 버튼 (볼륨 조절 슬라이더 왼쪽) -->
+        <button id="mute-toggle-btn" class="audio-btn" onclick="toggleMute()" title="음소거 켜기/끄기">
+          <span id="mute-icon">🔊</span>
+        </button>
+        <!-- 3. 볼륨 조절 슬라이더 -->
         <input type="range" id="volume-slider" class="volume-slider" min="0" max="1" step="0.05" value="0.3" oninput="changeVolume(this.value)">
       </div>
       <button class="menu-btn" onclick="toggleMenu(true)">☰</button>
@@ -277,12 +288,14 @@
   const db = firebase.database();
 
   /* ======================================================
-   * Web Audio API (배경음악 & 5초 전 초침 효과음)
+   * Web Audio API (배경음악, 효과음 및 오디오 컨트롤러)
    * ====================================================== */
   let audioCtx = null;
   let masterGainNode = null;
   let bgmGainNode = null;
-  let isMuted = false;
+  
+  let isBgmOff = false;   // 배경음악만 꺼짐 여부
+  let isMuted = false;    // 전체 음소거 여부
   let bgmInterval = null;
   let bgmStep = 0;
   let masterVolume = 0.3;
@@ -296,7 +309,7 @@
         audioCtx = new AudioContext();
 
         masterGainNode = audioCtx.createGain();
-        masterGainNode.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
+        masterGainNode.gain.setValueAtTime(isMuted ? 0 : masterVolume, audioCtx.currentTime);
         masterGainNode.connect(audioCtx.destination);
 
         bgmGainNode = audioCtx.createGain();
@@ -318,7 +331,7 @@
     if (bgmInterval) clearInterval(bgmInterval);
 
     bgmInterval = setInterval(() => {
-      if (isMuted || !audioCtx || audioCtx.state !== 'running') return;
+      if (isMuted || isBgmOff || !audioCtx || audioCtx.state !== 'running') return;
 
       const osc = audioCtx.createOscillator();
       const noteGain = audioCtx.createGain();
@@ -358,19 +371,35 @@
     osc.stop(audioCtx.currentTime + 0.06);
   }
 
+  /* 1. 배경음악 ON / OFF 토글 함수 */
   function toggleBGM() {
+    initAudio();
+    isBgmOff = !isBgmOff;
+    const slash = document.getElementById('music-slash');
+    
+    if (isBgmOff) {
+      slash.style.display = 'block'; // 빨간색 대각선 표시
+    } else {
+      slash.style.display = 'none';  // 대각선 숨김
+    }
+  }
+
+  /* 2. 소리 아예 끄기 (전체 Mute) 토글 함수 */
+  function toggleMute() {
+    initAudio();
     isMuted = !isMuted;
-    const btn = document.getElementById('bgm-toggle-btn');
+    const icon = document.getElementById('mute-icon');
+
     if (isMuted) {
-      btn.innerText = '🔇';
+      icon.innerText = '🔇';
       if (masterGainNode && audioCtx) masterGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
     } else {
-      btn.innerText = '🎵';
-      initAudio();
+      icon.innerText = '🔊';
       if (masterGainNode && audioCtx) masterGainNode.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
     }
   }
 
+  /* 3. 볼륨 슬라이더 값 변경 함수 */
   function changeVolume(val) {
     masterVolume = parseFloat(val);
     if (masterGainNode && audioCtx && !isMuted) {
@@ -1125,7 +1154,6 @@
       item.className = 'gallery-item' + (votedTargetId === u.id ? ' voted' : '');
       
       const img = document.createElement('img');
-      // 그림이 비어있으면 기본 캔버스 단색(흰색) 이미지를 할당
       img.src = u.drawing || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVShortcut';
 
       const nameLabel = document.createElement('div');
